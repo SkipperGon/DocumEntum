@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260422174209_db2")]
-    partial class db2
+    [Migration("20260422180327_db3")]
+    partial class db3
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -110,7 +110,7 @@ namespace DocumEntum.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Path")
-                        .HasColumnType("text");
+                        .HasColumnType("ltree");
 
                     b.HasKey("Id");
 

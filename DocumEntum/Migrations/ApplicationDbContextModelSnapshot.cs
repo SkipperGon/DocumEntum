@@ -107,7 +107,7 @@ namespace DocumEntum.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Path")
-                        .HasColumnType("text");
+                        .HasColumnType("ltree");
 
                     b.HasKey("Id");
 

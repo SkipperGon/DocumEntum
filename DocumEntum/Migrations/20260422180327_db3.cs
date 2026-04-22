@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     /// <inheritdoc />
-    public partial class db2 : Migration
+    public partial class db3 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -23,7 +23,7 @@ namespace DocumEntum.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     ParentId = table.Column<int>(type: "integer", nullable: true),
-                    Path = table.Column<string>(type: "text", nullable: true),
+                    Path = table.Column<string>(type: "ltree", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>

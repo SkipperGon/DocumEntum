@@ -20,6 +20,7 @@ namespace DocumEntum.Data
         public virtual ICollection<Department> Children { get; set; } = new List<Department>();
 
         // PostgreSQL ltree path для быстрых иерархических запросов
+        [Column(TypeName = "ltree")]
         public string? Path { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
