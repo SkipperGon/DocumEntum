@@ -2,9 +2,11 @@ using DocumEntum.Client.Pages;
 using DocumEntum.Components;
 using DocumEntum.Components.Account;
 using DocumEntum.Data;
+using DocumEntum.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql.EntityFrameworkCore.PostgreSQL; // Add this line
 
 namespace DocumEntum
 {
@@ -24,6 +26,12 @@ namespace DocumEntum
             builder.Services.AddScoped<IdentityRedirectManager>();
             builder.Services.AddScoped<AuthenticationStateProvider, PersistingRevalidatingAuthenticationStateProvider>();
 
+            builder.Services.AddHttpContextAccessor();
+            builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+            builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+            builder.Services.AddScoped<IDocumentService, DocumentService>();
+            builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+
             builder.Services.AddAuthentication(options =>
                 {
                     options.DefaultScheme = IdentityConstants.ApplicationScheme;
@@ -33,7 +41,7 @@ namespace DocumEntum
 
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(connectionString));
+                options.UseNpgsql(connectionString)); // Changed from UseSqlServer to UseNpgsql
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
             builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
@@ -49,7 +57,7 @@ namespace DocumEntum
             if (app.Environment.IsDevelopment())
             {
                 app.UseWebAssemblyDebugging();
-                app.UseMigrationsEndPoint();
+                // app.UseMigrationsEndPoint(); // Removed this line
             }
             else
             {

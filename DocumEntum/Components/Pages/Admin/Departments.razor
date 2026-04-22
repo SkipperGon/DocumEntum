@@ -1,0 +1,73 @@
+﻿@page "/admin/departments"
+@attribute [Authorize(Roles = "Admin")]
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.AspNetCore.Authorization
+@inject IOrganizationService OrgService
+@inject NavigationManager Nav
+
+<h3>Управление отделами</h3>
+
+<EditForm Model="newDept" OnValidSubmit="AddDepartment">
+    <div class="form-group">
+        <label>Название отдела</label>
+        <InputText @bind-Value="newDept.Name" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label>Родительский отдел</label>
+        <InputSelect @bind-Value="newDept.ParentId" class="form-control">
+            <option value="">Нет (корневой)</option>
+            @foreach (var d in departments)
+            {
+                <option value="@d.Id">@d.Name</option>
+            }
+        </InputSelect>
+    </div>
+    <button type="submit" class="btn btn-primary mt-2">Добавить</button>
+</EditForm>
+
+<hr />
+<h4>Существующие отделы</h4>
+<ul>
+    @foreach (var dept in departments)
+    {
+        <li>
+            @dept.Name
+            <button class="btn btn-sm btn-danger ms-2" @onclick="() => DeleteDept(dept.Id)">Удалить</button>
+        </li>
+    }
+</ul>
+
+@code {
+    private List<Department> departments = new();
+    private NewDepartment newDept = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDepartments();
+    }
+
+    private async Task LoadDepartments()
+    {
+        departments = await OrgService.GetAllDepartmentsAsync();
+    }
+
+    private async Task AddDepartment()
+    {
+        await OrgService.CreateDepartmentAsync(newDept.Name, newDept.ParentId);
+        newDept = new NewDepartment();
+        await LoadDepartments();
+    }
+
+    private async Task DeleteDept(int id)
+    {
+        await OrgService.DeleteDepartmentAsync(id);
+        await LoadDepartments();
+    }
+
+    public class NewDepartment
+    {
+        public string Name { get; set; } = "";
+        public int? ParentId { get; set; }
+    }
+}
