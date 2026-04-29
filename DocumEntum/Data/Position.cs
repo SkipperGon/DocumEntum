@@ -2,6 +2,9 @@
 
 namespace DocumEntum.Data
 {
+    /// <summary>
+    /// Справочник должностей (например, "Бухгалтер", "Начальник отдела").
+    /// </summary>
     public class Position
     {
         [Key]
