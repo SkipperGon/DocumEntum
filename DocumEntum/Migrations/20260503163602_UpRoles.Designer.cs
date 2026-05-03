@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260503150130_UpDocData")]
-    partial class UpDocData
+    [Migration("20260503163602_UpRoles")]
+    partial class UpRoles
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

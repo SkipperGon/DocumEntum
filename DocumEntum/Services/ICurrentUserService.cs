@@ -10,5 +10,9 @@ namespace DocumEntum.Services
         Task<int?> GetDepartmentIdAsync();
         Task<bool> IsInRoleAsync(string role);
         Task<Employee?> GetCurrentEmployeeAsync();
+        // Admin или SuperAdmin
+        Task<bool> IsAdminAsync();
+        // только SuperAdmin
+        Task<bool> IsSuperAdminAsync();
     }
 }

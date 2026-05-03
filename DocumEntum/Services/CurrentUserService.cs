@@ -22,13 +22,21 @@ namespace DocumEntum.Services
             _userManager = userManager;
             _dbContext = dbContext;
         }
-
+        public async Task<bool> IsSuperAdminAsync()
+        {
+            return await IsInRoleAsync("SuperAdmin");
+        }
         public string? UserId => _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
-
+        public async Task<bool> IsAdminAsync()
+        {
+            return await IsInRoleAsync("Admin") || await IsInRoleAsync("SuperAdmin");
+        }
         public async Task<Employee?> GetCurrentEmployeeAsync()
         {
             if (_cachedEmployee != null) return _cachedEmployee;
             if (UserId == null) return null;
+            // Администраторы не имеют Employee
+            if (await IsAdminAsync()) return null;
             _cachedEmployee = await _dbContext.Employees.FirstOrDefaultAsync(e => e.UserId == UserId);
             return _cachedEmployee;
         }

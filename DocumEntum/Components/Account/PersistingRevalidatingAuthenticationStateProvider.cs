@@ -73,7 +73,6 @@ namespace DocumEntum.Components.Account
         {
             authenticationStateTask = task;
         }
-
         private async Task OnPersistingAsync()
         {
             if (authenticationStateTask is null)
@@ -91,14 +90,22 @@ namespace DocumEntum.Components.Account
 
                 if (userId != null && email != null)
                 {
+                    // Получаем роли пользователя
+                    using var scope = scopeFactory.CreateScope();
+                    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                    var appUser = await userManager.FindByIdAsync(userId);
+                    var roles = appUser != null ? (await userManager.GetRolesAsync(appUser)).ToList() : new List<string>();
+
                     state.PersistAsJson(nameof(UserInfo), new UserInfo
                     {
                         UserId = userId,
                         Email = email,
+                        Roles = roles
                     });
                 }
             }
         }
+       
 
         protected override void Dispose(bool disposing)
         {

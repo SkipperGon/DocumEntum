@@ -12,7 +12,7 @@ namespace DocumEntum
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -51,6 +51,7 @@ namespace DocumEntum
                 options.User.RequireUniqueEmail = false;
                 options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
             })
+                .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddSignInManager()
 .AddDefaultTokenProviders();
@@ -83,7 +84,42 @@ namespace DocumEntum
             // Add additional endpoints required by the Identity /Account Razor components.
             app.MapAdditionalIdentityEndpoints();
 
+            using (var scope = app.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                await EnsureRolesAndSuperAdminAsync(services);
+            }
+
             app.Run();
+        }
+        static async Task EnsureRolesAndSuperAdminAsync(IServiceProvider services)
+        {
+            using var scope = services.CreateScope();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            // Создаём роли, если их нет
+            string[] roles = { "Admin", "SuperAdmin", "Employee" };
+            foreach (var role in roles)
+            {
+                if (!await roleManager.RoleExistsAsync(role))
+                    await roleManager.CreateAsync(new IdentityRole(role));
+            }
+
+            // Создаём главного администратора, если не существует
+            const string superAdminEmail = "superadmin@example.com";
+            const string superAdminUserName = "superadmin";
+            if (await userManager.FindByNameAsync(superAdminUserName) == null)
+            {
+                var superAdmin = new ApplicationUser { UserName = superAdminUserName, Email = superAdminEmail };
+                var result = await userManager.CreateAsync(superAdmin, "SuperAdmin123!"); // задайте надёжный пароль
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(superAdmin, "SuperAdmin");
+                    // Главный администратор не должен иметь Employee – ничего не создаём.
+                }
+            }
         }
     }
 }

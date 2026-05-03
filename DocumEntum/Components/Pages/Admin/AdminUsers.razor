@@ -1,0 +1,140 @@
+﻿@page "/admin/users"
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.EntityFrameworkCore
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject ApplicationDbContext DbContext
+@inject ICurrentUserService CurrentUserService
+
+<h3>Управление пользователями</h3>
+
+<table class="table">
+    <thead>
+        <tr><th>Логин</th><th>Email</th><th>Роли</th><th>Действия</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var vm in userViewModels)
+        {
+            if (vm.IsSuperAdmin) continue;
+            <tr>
+                <td>@vm.User.UserName</td>
+                <td>@vm.User.Email</td>
+                <td>@string.Join(", ", vm.Roles)</td>
+                <td>
+                    <button class="btn btn-sm btn-primary" @onclick="() => EditUser(vm.User)">Править</button>
+                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteUser(vm.User)">Удалить</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<button class="btn btn-success" @onclick="CreateUser">Добавить</button>
+
+@if (showModal)
+{
+    <!-- Модальное окно, как в предыдущем ответе -->
+}
+
+@code {
+    private List<UserViewModel> userViewModels = new();
+    private bool showModal;
+    private ApplicationUser? editingUser;
+    private UserEditModel editModel = new();
+    private List<string> allRoles = new();
+
+    private class UserViewModel
+    {
+        public ApplicationUser User { get; set; }
+        public List<string> Roles { get; set; } = new();
+        public bool IsSuperAdmin => Roles.Contains("SuperAdmin");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        allRoles = await RoleManager.Roles.Select(r => r.Name).ToListAsync();
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        var users = await UserManager.Users.ToListAsync();
+        userViewModels = new List<UserViewModel>();
+        foreach (var user in users)
+        {
+            var roles = await UserManager.GetRolesAsync(user);
+            userViewModels.Add(new UserViewModel
+            {
+                User = user,
+                Roles = roles.ToList()
+            });
+        }
+    }
+
+    private async Task<List<string>> GetUserRolesAsync(ApplicationUser user)
+    {
+        return (await UserManager.GetRolesAsync(user)).ToList();
+    }
+
+    private async Task<bool> IsSuperAdmin(ApplicationUser user)
+    {
+        return await UserManager.IsInRoleAsync(user, "SuperAdmin");
+    }
+
+    private void CreateUser()
+    {
+        editingUser = null;
+        editModel = new UserEditModel();
+        showModal = true;
+    }
+
+    private void EditUser(ApplicationUser user)
+    {
+        editingUser = user;
+        editModel = new UserEditModel
+        {
+            UserName = user.UserName,
+            Email = user.Email,
+            SelectedRoles = GetUserRolesAsync(user).Result,
+            // Для Employee загружаем данные из Employee, если есть
+            FullName = DbContext.Employees.FirstOrDefault(e => e.UserId == user.Id)?.FullName ?? ""
+        };
+        showModal = true;
+    }
+
+    private async Task SaveUser()
+    {
+        // Реализация: создание/обновление пользователя, управление ролями, создание/удаление Employee
+        // ...
+        showModal = false;
+        await LoadUsers();
+        StateHasChanged();
+    }
+
+    private async Task DeleteUser(ApplicationUser user)
+    {
+        if (await IsSuperAdmin(user)) return;
+        // Удаляем связанного Employee если есть
+        var emp = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == user.Id);
+        if (emp != null) DbContext.Employees.Remove(emp);
+        await UserManager.DeleteAsync(user);
+        await DbContext.SaveChangesAsync();
+        await LoadUsers();
+        StateHasChanged();
+    }
+
+    private void CloseModal() => showModal = false;
+
+    public class UserEditModel
+    {
+        public string UserName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public List<string> SelectedRoles { get; set; } = new();
+        public string FullName { get; set; } = "";
+    }
+}

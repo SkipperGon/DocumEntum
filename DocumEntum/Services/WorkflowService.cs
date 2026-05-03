@@ -12,14 +12,20 @@ namespace DocumEntum.Services
     public class WorkflowService : IWorkflowService
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly ICurrentUserService _currentUserService;
 
-        public WorkflowService(ApplicationDbContext dbContext)
+        public WorkflowService(ApplicationDbContext dbContext, ICurrentUserService currentUserService)
         {
             _dbContext = dbContext;
+            _currentUserService = currentUserService;
         }
 
         public async Task<List<WorkflowTransition>> GetAvailableTransitionsAsync(Document document, int employeeId)
         {
+            // Администратор не может выполнять переходы
+            if (await _currentUserService.IsAdminAsync())
+                return new List<WorkflowTransition>();
+
             var employee = await _dbContext.Employees.FindAsync(employeeId);
             if (employee == null) return new List<WorkflowTransition>();
 
@@ -47,6 +53,9 @@ namespace DocumEntum.Services
 
         public async Task<bool> ExecuteTransitionAsync(Document document, string actionName, int employeeId, string? comment = null)
         {
+            if (await _currentUserService.IsAdminAsync())
+                return false;
+
             var transition = await _dbContext.WorkflowTransitions
                 .FirstOrDefaultAsync(t => t.WorkflowId == document.WorkflowId && t.FromStateId == document.CurrentStateId && t.ActionName == actionName);
 
