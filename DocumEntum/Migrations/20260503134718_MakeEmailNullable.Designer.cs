@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260422180327_db3")]
-    partial class db3
+    [Migration("20260503134718_MakeEmailNullable")]
+    partial class MakeEmailNullable
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

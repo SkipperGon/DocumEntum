@@ -26,6 +26,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(builder);
 
+        // Email и NormalizedEmail nullable
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(e => e.Email).IsRequired(false);
+            entity.Property(e => e.NormalizedEmail).IsRequired(false);
+        });
+
         // ========== Department (рекурсивная структура) ==========
         builder.Entity<Department>(entity =>
         {
