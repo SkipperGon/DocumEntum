@@ -141,7 +141,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.HasKey(d => d.Id);
             entity.Property(d => d.Title).IsRequired().HasMaxLength(500);
-            entity.Property(d => d.Content).HasColumnType("text");
+
+            // Новые файловые поля
+            entity.Property(d => d.FileName).IsRequired().HasMaxLength(500);
+            entity.Property(d => d.StoredFileName).IsRequired().HasMaxLength(100);
+            entity.Property(d => d.FileExtension).IsRequired().HasMaxLength(50);
+            entity.Property(d => d.FileSize).IsRequired();
+            entity.Property(d => d.ContentType).IsRequired().HasMaxLength(200);
 
             // JSONB для динамических атрибутов
             entity.OwnsOne(d => d.ExtraAttributes, attr =>
@@ -168,7 +174,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasOne(d => d.Department)
                 .WithMany()
                 .HasForeignKey(d => d.DepartmentId)
-                .OnDelete(DeleteBehavior.SetNull); // если отдел удалён, документ остаётся без отдела
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Индексы для поиска
             entity.HasIndex(d => d.CreatedAt);

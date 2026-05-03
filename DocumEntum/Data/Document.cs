@@ -16,8 +16,17 @@ namespace DocumEntum.Data
         [Required]
         [MaxLength(500)]
         public string Title { get; set; } = string.Empty;
+        // Оригинальное имя с расширением
+        public string FileName { get; set; } = string.Empty;
+        // GUID без расширение (например, "123e4567-e89b-12d3-a456-426614174000")
+        public string StoredFileName { get; set; } = string.Empty;
+        // Расширение без точки (pdf, docx)
+        public string FileExtension { get; set; } = string.Empty;
+        // Размер в байтах
+        public long FileSize { get; set; }
+        // MIME-тип
+        public string ContentType { get; set; } = string.Empty;     
 
-        public string? Content { get; set; }
         /// <summary>Идентификатор автора (сотрудника).</summary>
         public int AuthorId { get; set; }
         public virtual Employee Author { get; set; } = null!;
