@@ -1,0 +1,137 @@
+﻿@page "/Account/SetupSuperAdmin"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using DocumEntum.Data
+@using DocumEntum.Services
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject NavigationManager NavigationManager
+@inject SuperAdminStatusService SuperAdminStatus
+
+<PageTitle>Создание главного администратора</PageTitle>
+
+@if (checking)
+{
+    <p>Проверка...</p>
+}
+else if (SuperAdminStatus.HasSuperAdmin)
+{
+    // Суперадмин уже существует в системе (создан в этой сессии или был при запуске)
+    <p>Перенаправление...</p>
+}
+else
+{
+    <h2>Создание главного администратора</h2>
+    <p>В системе нет ни одного пользователя с ролью "SuperAdmin". Пожалуйста, создайте главного администратора.</p>
+
+    <EditForm Model="Input" OnValidSubmit="HandleSubmit" FormName="setup-superadmin">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Логин</label>
+            <InputText @bind-Value="Input.UserName" class="form-control" />
+            <ValidationMessage For="() => Input.UserName" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Email (необязательно)</label>
+            <InputText @bind-Value="Input.Email" type="email" class="form-control" />
+            <ValidationMessage For="() => Input.Email" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Пароль</label>
+            <InputText @bind-Value="Input.Password" type="password" class="form-control" />
+            <ValidationMessage For="() => Input.Password" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Подтверждение пароля</label>
+            <InputText @bind-Value="Input.ConfirmPassword" type="password" class="form-control" />
+            <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Создать</button>
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger mt-3">@errorMessage</div>
+        }
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    private string? errorMessage;
+    private bool checking = true;
+
+    protected override void OnInitialized()
+    {
+        checking = false;
+        // Если суперадмин уже есть (флаг true), немедленно уходим
+        if (SuperAdminStatus.HasSuperAdmin)
+        {
+            NavigationManager.NavigateTo("/", true);
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+
+        // Ещё раз проверяем флаг – на случай, если страница была открыта до создания,
+        // а суперадмин уже создан (например, в другой вкладке). Базу не трогаем.
+        if (SuperAdminStatus.HasSuperAdmin)
+        {
+            NavigationManager.NavigateTo("/");
+            return;
+        }
+
+        var user = new ApplicationUser
+        {
+            UserName = Input.UserName,
+            Email = string.IsNullOrEmpty(Input.Email) ? null : Input.Email
+        };
+
+        var result = await UserManager.CreateAsync(user, Input.Password);
+        if (!result.Succeeded)
+        {
+            errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
+            return;
+        }
+
+        var roleResult = await UserManager.AddToRoleAsync(user, "SuperAdmin");
+        if (!roleResult.Succeeded)
+        {
+            errorMessage = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+            await UserManager.DeleteAsync(user);
+            return;
+        }
+
+        // Устанавливаем флаг, чтобы больше никогда не показывать эту страницу до перезапуска
+        SuperAdminStatus.HasSuperAdmin = true;
+
+        // Перенаправляем на страницу входа
+        NavigationManager.NavigateTo("/Account/Login");
+    }
+
+    public class InputModel
+    {
+        [Required(ErrorMessage = "Логин обязателен")]
+        public string UserName { get; set; } = "";
+
+        [EmailAddress(ErrorMessage = "Некорректный email")]
+        public string? Email { get; set; }
+
+        [Required(ErrorMessage = "Пароль обязателен")]
+        [DataType(DataType.Password)]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Пароль должен быть не менее 6 символов")]
+        public string Password { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Compare("Password", ErrorMessage = "Пароли не совпадают")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

@@ -2,6 +2,7 @@ using DocumEntum.Client.Pages;
 using DocumEntum.Components;
 using DocumEntum.Components.Account;
 using DocumEntum.Data;
+using DocumEntum.Middleware;
 using DocumEntum.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -27,6 +28,7 @@ namespace DocumEntum
             builder.Services.AddScoped<AuthenticationStateProvider, PersistingRevalidatingAuthenticationStateProvider>();
 
             builder.Services.AddHttpContextAccessor();
+            builder.Services.AddSingleton<SuperAdminStatusService>();
             builder.Services.AddScoped<IFileStorageService, FileStorageService>();
             builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
             builder.Services.AddScoped<IWorkflowService, WorkflowService>();
@@ -76,6 +78,8 @@ namespace DocumEntum
             app.UseStaticFiles();
             app.UseAntiforgery();
 
+            app.UseMiddleware<SuperAdminSetupMiddleware>();
+
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode()
                 .AddInteractiveWebAssemblyRenderMode()
@@ -83,16 +87,30 @@ namespace DocumEntum
 
             // Add additional endpoints required by the Identity /Account Razor components.
             app.MapAdditionalIdentityEndpoints();
-
+            //создаём роли
             using (var scope = app.Services.CreateScope())
             {
-                var services = scope.ServiceProvider;
-                await EnsureRolesAndSuperAdminAsync(services);
+                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+                string[] roles = { "Admin", "SuperAdmin", "Employee" };
+                foreach (var role in roles)
+                    if (!await roleManager.RoleExistsAsync(role))
+                        await roleManager.CreateAsync(new IdentityRole(role));
+
+                //при запуске проверка наличия суперадмина в БД
+                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                var superAdminStatus = scope.ServiceProvider.GetRequiredService<SuperAdminStatusService>();
+                var superAdmins = await userManager.GetUsersInRoleAsync("SuperAdmin");
+                superAdminStatus.HasSuperAdmin = superAdmins.Any();
+
+                if (superAdminStatus.HasSuperAdmin)
+                    Console.WriteLine("[INFO] Главный администратор (SuperAdmin) найден в БД при запуске.");
+                else
+                    Console.WriteLine("[WARN] Главный администратор (SuperAdmin) НЕ найден. При первом входе потребуется создание.");
             }
 
             app.Run();
         }
-        static async Task EnsureRolesAndSuperAdminAsync(IServiceProvider services)
+        /*static async Task EnsureRolesAndSuperAdminAsync(IServiceProvider services)
         {
             using var scope = services.CreateScope();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
@@ -120,6 +138,6 @@ namespace DocumEntum
                     // Главный администратор не должен иметь Employee – ничего не создаём.
                 }
             }
-        }
+        }*/
     }
 }
