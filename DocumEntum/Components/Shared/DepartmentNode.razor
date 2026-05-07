@@ -1,0 +1,48 @@
+﻿@using DocumEntum.Data
+
+<li>
+    <div class="department-item">
+        <span style="cursor: pointer;" @onclick="ToggleChildren">
+            @if (HasChildren)
+            {
+                @(Expanded ? "▼" : "▶")
+            }
+            else
+            {
+                <span style="visibility: hidden;">  </span>
+            }
+        </span>
+        <span>@Department.Name</span>
+        <div class="btn-group btn-group-sm ms-2">
+            <button class="btn btn-outline-secondary" @onclick="() => OnEdit.InvokeAsync(Department)" title="Редактировать">✏️</button>
+            <button class="btn btn-outline-secondary" @onclick="() => OnAddChild.InvokeAsync(Department)" title="Добавить подотдел">➕</button>
+            <button class="btn btn-outline-danger" @onclick="() => OnDelete.InvokeAsync(Department)" title="Удалить">🗑️</button>
+        </div>
+    </div>
+    @if (HasChildren && Expanded)
+    {
+        <ul>
+            @foreach (var child in Children)
+            {
+                <DepartmentNode Department="child"
+                                Children="child.Children?.ToList() ?? new List<Department>()"
+                                OnEdit="OnEdit"
+                                OnAddChild="OnAddChild"
+                                OnDelete="OnDelete" />
+            }
+        </ul>
+    }
+</li>
+
+@code {
+    [Parameter] public Department Department { get; set; } = default!;
+    [Parameter] public List<Department> Children { get; set; } = new();
+    [Parameter] public EventCallback<Department> OnEdit { get; set; }
+    [Parameter] public EventCallback<Department> OnAddChild { get; set; }
+    [Parameter] public EventCallback<Department> OnDelete { get; set; }
+
+    private bool Expanded { get; set; } = true;
+    private bool HasChildren => Children.Any();
+    private void ToggleChildren() => Expanded = !Expanded;
+
+}

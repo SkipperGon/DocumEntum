@@ -1,73 +1,269 @@
 ﻿@page "/admin/departments"
-@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using DocumEntum.Data
 @using DocumEntum.Services
 @using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel.DataAnnotations
 @inject IOrganizationService OrgService
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <h3>Управление отделами</h3>
 
-<EditForm Model="newDept" OnValidSubmit="AddDepartment">
-    <div class="form-group">
-        <label>Название отдела</label>
-        <InputText @bind-Value="newDept.Name" class="form-control" />
-    </div>
-    <div class="form-group">
-        <label>Родительский отдел</label>
-        <InputSelect @bind-Value="newDept.ParentId" class="form-control">
-            <option value="">Нет (корневой)</option>
-            @foreach (var d in departments)
-            {
-                <option value="@d.Id">@d.Name</option>
-            }
-        </InputSelect>
-    </div>
-    <button type="submit" class="btn btn-primary mt-2">Добавить</button>
-</EditForm>
+@if (isLoading)
+{
+    <p>Загрузка...</p>
+}
+else
+{
+    <button class="btn btn-primary mb-3" @onclick="() => OpenModal(null, null)">➕ Добавить корневой отдел</button>
 
-<hr />
-<h4>Существующие отделы</h4>
-<ul>
-    @foreach (var dept in departments)
+    @if (rootDepartments.Any())
     {
-        <li>
-            @dept.Name
-            <button class="btn btn-sm btn-danger ms-2" @onclick="() => DeleteDept(dept.Id)">Удалить</button>
-        </li>
+        <ul class="department-tree">
+            @foreach (var root in rootDepartments)
+            {
+                <DepartmentNode Department="root"
+                                Children="root.Children?.ToList() ?? new List<Department>()"
+                                OnEdit="(dept) => OpenModal(dept,null)"
+                                OnAddChild="(dept) => OpenModal(null,dept)"
+                                OnDelete="ConfirmDelete" />
+            }
+        </ul>
     }
-</ul>
+    else
+    {
+        <p>Нет отделов. Создайте первый отдел.</p>
+    }
+}
+
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingDepartment == null ? "Новый отдел" : "Редактирование отдела")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <EditForm Model="editModel" OnValidSubmit="SaveDepartment">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Название</label>
+                            <InputText @bind-Value="editModel.Name" class="form-control" />
+                            <ValidationMessage For="() => editModel.Name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Родительский отдел</label>
+                            <InputSelect @bind-Value="editModel.ParentId" class="form-control">
+                                <option value="">— Корневой отдел —</option>
+                                @foreach (var dept in allDepartmentsFlat)
+                                {
+                                    // Нельзя выбрать самого себя или своего потомка (простая защита)
+                                    if (editingDepartment != null && (dept.Id == editingDepartment.Id || IsDescendantOf(dept.Id, editingDepartment.Id)))
+                                        continue;
+                                    <option value="@dept.Id">@dept.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger">@errorMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
-    private List<Department> departments = new();
-    private NewDepartment newDept = new();
+    private List<Department> allDepartmentsFlat = new();
+    private List<Department> rootDepartments = new();
+    private bool isLoading = true;
+    private bool showModal;
+    private Department? editingDepartment;
+    private Department? parentForNew; // если добавляем подотдел
+    private DepartmentEditModel editModel = new();
+    private string? errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadDepartments();
+        await LoadData();
     }
 
-    private async Task LoadDepartments()
+    private async Task LoadData()
     {
-        departments = await OrgService.GetAllDepartmentsAsync();
+        isLoading = true;
+        try
+        {
+            allDepartmentsFlat = await OrgService.GetAllDepartmentsFlatAsync();
+            BuildTree();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка загрузки: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
-    private async Task AddDepartment()
+    private void BuildTree()
     {
-        await OrgService.CreateDepartmentAsync(newDept.Name, newDept.ParentId);
-        newDept = new NewDepartment();
-        await LoadDepartments();
+        var lookup = allDepartmentsFlat.ToDictionary(d => d.Id);
+        foreach (var dept in allDepartmentsFlat)
+        {
+            dept.Children = new List<Department>();
+        }
+        rootDepartments.Clear();
+        foreach (var dept in allDepartmentsFlat)
+        {
+            if (dept.ParentId == null)
+                rootDepartments.Add(dept);
+            else if (lookup.TryGetValue(dept.ParentId.Value, out var parent))
+                parent.Children.Add(dept);
+        }
     }
 
-    private async Task DeleteDept(int id)
+    private void OpenModal(Department? editDept, Department? parent)
     {
-        await OrgService.DeleteDepartmentAsync(id);
-        await LoadDepartments();
+        editingDepartment = editDept;
+        parentForNew = parent;
+        editModel = new DepartmentEditModel();
+
+        if (editDept != null)
+        {
+            editModel.Name = editDept.Name;
+            editModel.ParentId = editDept.ParentId;
+        }
+        else
+        {
+            editModel.ParentId = parent?.Id;
+        }
+
+        showModal = true;
+        errorMessage = null;
+        StateHasChanged();
     }
 
-    public class NewDepartment
+    private async Task SaveDepartment()
     {
+        errorMessage = null;
+
+        try
+        {
+            if (editingDepartment == null)
+            {
+                // Создание
+                var newDept = new Department
+                {
+                    Name = editModel.Name,
+                    ParentId = editModel.ParentId
+                };
+                await OrgService.CreateDepartmentAsync(newDept.Name, newDept.ParentId);
+            }
+            else
+            {
+                // Редактирование
+                if (editModel.ParentId == editingDepartment.Id)
+                {
+                    errorMessage = "Отдел не может быть родителем самого себя.";
+                    return;
+                }
+                // Проверка на циклическую зависимость (нельзя перенести в дочерний отдел)
+                if (editModel.ParentId.HasValue && IsDescendantOf(editModel.ParentId.Value, editingDepartment.Id))
+                {
+                    errorMessage = "Нельзя переместить отдел в его собственный подотдел.";
+                    return;
+                }
+
+                editingDepartment.Name = editModel.Name;
+                editingDepartment.ParentId = editModel.ParentId;
+                await OrgService.UpdateDepartmentAsync(editingDepartment);
+            }
+
+            await LoadData();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка сохранения: {ex.Message}";
+        }
+    }
+
+    private async Task ConfirmDelete(Department dept)
+    {
+        var canDelete = await OrgService.CanDeleteDepartmentAsync(dept.Id);
+        if (!canDelete)
+        {
+            errorMessage = "Невозможно удалить отдел: у него есть подотделы или привязанные документы.";
+            StateHasChanged();
+            await Task.Delay(3000);
+            errorMessage = null;
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить отдел '{dept.Name}' и все его подотделы?");
+        if (confirmed)
+        {
+            await OrgService.DeleteDepartmentAsync(dept.Id);
+            await LoadData();
+        }
+    }
+
+    private bool IsDescendantOf(int possibleDescendantId, int ancestorId)
+    {
+        var current = allDepartmentsFlat.FirstOrDefault(d => d.Id == possibleDescendantId);
+        while (current != null && current.ParentId != null)
+        {
+            if (current.ParentId == ancestorId) return true;
+            current = allDepartmentsFlat.FirstOrDefault(d => d.Id == current.ParentId);
+        }
+        return false;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editingDepartment = null;
+        parentForNew = null;
+        editModel = new DepartmentEditModel();
+        errorMessage = null;
+    }
+
+    public class DepartmentEditModel
+    {
+        [Required(ErrorMessage = "Название обязательно")]
         public string Name { get; set; } = "";
         public int? ParentId { get; set; }
     }
 }
+
+<style>
+    .department-tree {
+        list-style: none;
+        padding-left: 0;
+    }
+    .department-tree ul {
+        list-style: none;
+        padding-left: 20px;
+    }
+    .department-item {
+        margin: 5px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .btn-group .btn {
+        padding: 0 4px;
+        font-size: 0.8rem;
+    }
+</style>

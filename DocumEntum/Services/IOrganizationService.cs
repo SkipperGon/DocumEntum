@@ -10,6 +10,9 @@ namespace DocumEntum.Services
         Task<List<Employee>> GetAllEmployeesAsync();
         Task AssignEmployeeToPositionAsync(int employeeId, int departmentId, int positionId);
 
-
+        Task<Department?> GetDepartmentByIdAsync(int id);
+        Task UpdateDepartmentAsync(Department department);
+        Task<bool> CanDeleteDepartmentAsync(int id);
+        Task<List<Department>> GetAllDepartmentsFlatAsync();
     }
 }

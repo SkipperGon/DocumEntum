@@ -62,5 +62,44 @@ namespace DocumEntum.Services
             _dbContext.EmployeePositions.Add(empPos);
             await _dbContext.SaveChangesAsync();
         }
+        public async Task<Department?> GetDepartmentByIdAsync(int id)
+        {
+            return await _dbContext.Departments.FindAsync(id);
+        }
+
+        public async Task UpdateDepartmentAsync(Department department)
+        {
+            _dbContext.Departments.Update(department);
+            // Если изменился родитель – пересчитываем Path (опционально, но рекомендуется)
+            await RecalculatePathAsync(department);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        public async Task<bool> CanDeleteDepartmentAsync(int id)
+        {
+            var hasChildren = await _dbContext.Departments.AnyAsync(d => d.ParentId == id);
+            if (hasChildren) return false;
+            var hasDocuments = await _dbContext.Documents.AnyAsync(d => d.DepartmentId == id);
+            return !hasDocuments;
+        }
+
+        public async Task<List<Department>> GetAllDepartmentsFlatAsync()
+        {
+            return await _dbContext.Departments
+                .OrderBy(d => d.Path)
+                .ThenBy(d => d.Id)
+                .ToListAsync();
+        }
+
+        private async Task RecalculatePathAsync(Department department)
+        {
+            if (department.ParentId == null)
+                department.Path = department.Id.ToString();
+            else
+            {
+                var parent = await _dbContext.Departments.FindAsync(department.ParentId);
+                department.Path = parent?.Path + "." + department.Id;
+            }
+        }
     }
 }
