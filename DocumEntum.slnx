@@ -1,4 +1,3 @@
 <Solution>
-  <Project Path="DocumEntum.Client/DocumEntum.Client.csproj" />
   <Project Path="DocumEntum/DocumEntum.csproj" />
 </Solution>

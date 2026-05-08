@@ -1,4 +1,3 @@
-using DocumEntum.Client.Pages;
 using DocumEntum.Components;
 using DocumEntum.Components.Account;
 using DocumEntum.Data;
@@ -19,8 +18,7 @@ namespace DocumEntum
 
             // Add services to the container.
             builder.Services.AddRazorComponents()
-                .AddInteractiveServerComponents()
-                .AddInteractiveWebAssemblyComponents();
+                .AddInteractiveServerComponents();
 
             builder.Services.AddCascadingAuthenticationState();
             builder.Services.AddScoped<IdentityUserAccessor>();
@@ -62,10 +60,7 @@ namespace DocumEntum
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
-            {
-                app.UseWebAssemblyDebugging();
-                // app.UseMigrationsEndPoint(); // Removed this line
-            }
+            {}
             else
             {
                 app.UseExceptionHandler("/Error");
@@ -81,9 +76,7 @@ namespace DocumEntum
             app.UseMiddleware<SuperAdminSetupMiddleware>();
 
             app.MapRazorComponents<App>()
-                .AddInteractiveServerRenderMode()
-                .AddInteractiveWebAssemblyRenderMode()
-                .AddAdditionalAssemblies(typeof(Client._Imports).Assembly);
+                .AddInteractiveServerRenderMode();
 
             // Add additional endpoints required by the Identity /Account Razor components.
             app.MapAdditionalIdentityEndpoints();
