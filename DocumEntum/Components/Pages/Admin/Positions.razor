@@ -1,0 +1,341 @@
+﻿@page "/admin/positions"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using Microsoft.AspNetCore.Authorization
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using System.ComponentModel.DataAnnotations
+@inject IOrganizationService OrgService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<h3>Управление должностями</h3>
+
+@if (isLoading)
+{
+    <p>Загрузка...</p>
+}
+else
+{
+    <button class="btn btn-primary mb-3" @onclick="() => OpenPositionModal(null)">➕ Добавить должность</button>
+
+    @if (positions.Any())
+    {
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Описание</th>
+                    <th>Отдел</th>
+                    <th>Сотрудники</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var pos in positions)
+                {
+                    <tr>
+                        <td>@pos.Title</td>
+                        <td>@pos.Description</td>
+                        <td>@pos.Department?.Name</td>
+                        <td>
+                            @{
+                                var activeAssignments = pos.EmployeePositions?.Where(ep => ep.EndDate == null).ToList() ?? new();
+                                if (activeAssignments.Any())
+                                {
+                                    <ul class="list-unstyled mb-0">
+                                        @foreach (var assignment in activeAssignments)
+                                        {
+                                            <li>
+                                                @assignment.Employee?.FullName
+                                                <button class="btn btn-sm btn-outline-danger ms-2" @onclick="() => UnassignEmployee(assignment.Id)" title="Открепить">
+                                                    🗑️
+                                                </button>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenPositionModal(pos)">✏️</button>
+                            <button class="btn btn-sm btn-danger me-1" @onclick="() => DeletePosition(pos)">🗑️</button>
+                            <button class="btn btn-sm btn-success" @onclick="() => OpenAssignModal(pos)">➕ Назначить</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>Должности отсутствуют. Создайте первую должность.</p>
+    }
+}
+
+@* Модальное окно создания/редактирования должности *@
+@if (showPositionModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingPosition == null ? "Новая должность" : "Редактирование должности")</h5>
+                    <button type="button" class="btn-close" @onclick="ClosePositionModal"></button>
+                </div>
+                <EditForm Model="positionEditModel" OnValidSubmit="SavePosition">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Название</label>
+                            <InputText @bind-Value="positionEditModel.Title" class="form-control" />
+                            <ValidationMessage For="() => positionEditModel.Title" class="text-danger" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Описание</label>
+                            <InputText @bind-Value="positionEditModel.Description" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Отдел</label>
+                            <InputSelect @bind-Value="positionEditModel.DepartmentId" class="form-control">
+                                <option value="">-- Выберите отдел --</option>
+                                @foreach (var dept in departments)
+                                {
+                                    <option value="@dept.Id">@dept.Name</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => positionEditModel.DepartmentId" class="text-danger" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(positionErrorMessage))
+                        {
+                            <div class="alert alert-danger mt-2">@positionErrorMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="ClosePositionModal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@* Модальное окно назначения сотрудника на должность *@
+@if (showAssignModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Назначение сотрудника на должность: @selectedPosition?.Title</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAssignModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Сотрудник</label>
+                        <InputSelect @bind-Value="selectedEmployeeId" class="form-control">
+                            <option value="">-- Выберите сотрудника --</option>
+                            @foreach (var emp in availableEmployees)
+                            {
+                                <option value="@emp.Id">@emp.FullName (@emp.User?.UserName)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    @if (!string.IsNullOrEmpty(assignErrorMessage))
+                    {
+                        <div class="alert alert-danger">@assignErrorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseAssignModal">Отмена</button>
+                    <button type="button" class="btn btn-primary" @onclick="AssignEmployee">Назначить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Position> positions = new();
+    private List<Department> departments = new();
+    private List<Employee> employees = new();
+    private List<Employee> availableEmployees = new();
+    private bool isLoading = true;
+
+    // Модалка для должности
+    private bool showPositionModal = false;
+    private Position? editingPosition = null;
+    private PositionEditModel positionEditModel = new();
+    private string? positionErrorMessage;
+
+    // Модалка для назначения сотрудника
+    private bool showAssignModal = false;
+    private Position? selectedPosition = null;
+    private int selectedEmployeeId;
+    private string? assignErrorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            positions = await OrgService.GetAllPositionsWithDetailsAsync();
+            departments = await OrgService.GetAllDepartmentsFlatAsync();
+            employees = await OrgService.GetAllEmployeesAsync();
+            availableEmployees = await OrgService.GetAvailableEmployeesAsync();
+            // Подгружаем связанных пользователей для отображения логина
+            foreach (var emp in employees)
+            {
+                // Если нужно отобразить UserName, можно предварительно загрузить, но Employee.User загружен?
+                // В методе GetAllEmployeesAsync нет Include(User). Можно либо добавить Include, либо не отображать.
+            }
+        }
+        catch (Exception ex)
+        {
+            positionErrorMessage = $"Ошибка загрузки: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // ---------- Должности ----------
+    private void OpenPositionModal(Position? pos)
+    {
+        editingPosition = pos;
+        positionEditModel = new PositionEditModel();
+        if (pos != null)
+        {
+            positionEditModel.Title = pos.Title;
+            positionEditModel.Description = pos.Description;
+            positionEditModel.DepartmentId = pos.DepartmentId;
+        }
+        showPositionModal = true;
+        positionErrorMessage = null;
+    }
+
+    private async Task SavePosition()
+    {
+        positionErrorMessage = null;
+        try
+        {
+            if (positionEditModel.DepartmentId == null || positionEditModel.DepartmentId == 0)
+                throw new Exception("Необходимо выбрать отдел.");
+
+            if (editingPosition == null)
+            {
+                await OrgService.CreatePositionAsync(positionEditModel.DepartmentId.Value, positionEditModel.Title, positionEditModel.Description);
+            }
+            else
+            {
+                editingPosition.Title = positionEditModel.Title;
+                editingPosition.Description = positionEditModel.Description;
+                editingPosition.DepartmentId = positionEditModel.DepartmentId.Value;
+                await OrgService.UpdatePositionAsync(editingPosition);
+            }
+            await LoadData();
+            ClosePositionModal();
+        }
+        catch (Exception ex)
+        {
+            positionErrorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeletePosition(Position pos)
+    {
+        bool canDelete = await OrgService.CanDeletePositionAsync(pos.Id);
+        if (!canDelete)
+        {
+            await JS.InvokeVoidAsync("alert", "Нельзя удалить должность, на которую назначены сотрудники.");
+            return;
+        }
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить должность '{pos.Title}'?");
+        if (confirmed)
+        {
+            await OrgService.DeletePositionAsync(pos.Id);
+            await LoadData();
+        }
+    }
+
+    private void ClosePositionModal()
+    {
+        showPositionModal = false;
+        editingPosition = null;
+        positionEditModel = new PositionEditModel();
+        positionErrorMessage = null;
+    }
+
+    // ---------- Назначение сотрудников ----------
+    private void OpenAssignModal(Position pos)
+    {
+        selectedPosition = pos;
+        selectedEmployeeId = 0;
+        assignErrorMessage = null;
+        showAssignModal = true;
+    }
+
+    private async Task AssignEmployee()
+    {
+        if (selectedEmployeeId == 0)
+        {
+            assignErrorMessage = "Выберите сотрудника.";
+            return;
+        }
+        if (selectedPosition == null) return;
+
+        try
+        {
+            await OrgService.AssignEmployeeToPositionAsync(selectedEmployeeId, selectedPosition.Id);
+            await LoadData();
+            CloseAssignModal();
+        }
+        catch (Exception ex)
+        {
+            assignErrorMessage = ex.Message;
+        }
+    }
+
+    private async Task UnassignEmployee(int employeePositionId)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", "Открепить сотрудника от должности?");
+        if (confirmed)
+        {
+            await OrgService.RemoveEmployeeFromPositionAsync(employeePositionId);
+            await LoadData();
+        }
+    }
+
+    private void CloseAssignModal()
+    {
+        showAssignModal = false;
+        selectedPosition = null;
+        selectedEmployeeId = 0;
+        assignErrorMessage = null;
+    }
+
+    // ---------- Вспомогательные модели ----------
+    public class PositionEditModel
+    {
+        [Required(ErrorMessage = "Название обязательно")]
+        public string Title { get; set; } = "";
+
+        public string? Description { get; set; }
+
+        [Required(ErrorMessage = "Отдел обязателен")]
+        public int? DepartmentId { get; set; }
+    }
+}

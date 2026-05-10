@@ -11,16 +11,11 @@ namespace DocumEntum.Data
         [Key]
         public int Id { get; set; }
 
-        /// <summary>Идентификатор сотрудника</summary>
+        /// <summary>Сотрудник</summary>
         public int EmployeeId { get; set; }
         public virtual Employee Employee { get; set; } = null!;
 
-        /// <summary>
-        /// Идентификатор отдела</summary>
-        public int DepartmentId { get; set; }
-        public virtual Department Department { get; set; } = null!;
-
-        /// <summary>Идентификатор должности</summary>
+        /// <summary>Должностб</summary>
         public int? PositionId { get; set; }
         public virtual Position? Position { get; set; } = null!;
 

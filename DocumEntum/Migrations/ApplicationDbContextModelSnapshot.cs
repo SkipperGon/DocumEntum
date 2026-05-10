@@ -269,9 +269,6 @@ namespace DocumEntum.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("DepartmentId")
-                        .HasColumnType("integer");
-
                     b.Property<int>("EmployeeId")
                         .HasColumnType("integer");
 
@@ -286,11 +283,9 @@ namespace DocumEntum.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DepartmentId");
-
                     b.HasIndex("PositionId");
 
-                    b.HasIndex("EmployeeId", "DepartmentId", "PositionId")
+                    b.HasIndex("EmployeeId", "PositionId")
                         .IsUnique();
 
                     b.ToTable("EmployeePositions");
@@ -647,12 +642,6 @@ namespace DocumEntum.Migrations
 
             modelBuilder.Entity("DocumEntum.Data.EmployeePosition", b =>
                 {
-                    b.HasOne("DocumEntum.Data.Department", "Department")
-                        .WithMany()
-                        .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("DocumEntum.Data.Employee", "Employee")
                         .WithMany()
                         .HasForeignKey("EmployeeId")
@@ -660,11 +649,9 @@ namespace DocumEntum.Migrations
                         .IsRequired();
 
                     b.HasOne("DocumEntum.Data.Position", "Position")
-                        .WithMany()
+                        .WithMany("EmployeePositions")
                         .HasForeignKey("PositionId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Department");
 
                     b.Navigation("Employee");
 
@@ -776,6 +763,11 @@ namespace DocumEntum.Migrations
                     b.Navigation("Children");
 
                     b.Navigation("Positions");
+                });
+
+            modelBuilder.Entity("DocumEntum.Data.Position", b =>
+                {
+                    b.Navigation("EmployeePositions");
                 });
 
             modelBuilder.Entity("DocumEntum.Data.Workflow", b =>

@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     /// <inheritdoc />
-    public partial class upEmp1 : Migration
+    public partial class PosUp2 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -271,7 +271,6 @@ namespace DocumEntum.Migrations
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     EmployeeId = table.Column<int>(type: "integer", nullable: false),
-                    DepartmentId = table.Column<int>(type: "integer", nullable: false),
                     PositionId = table.Column<int>(type: "integer", nullable: true),
                     StartDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     EndDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
@@ -279,12 +278,6 @@ namespace DocumEntum.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_EmployeePositions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_EmployeePositions_Departments_DepartmentId",
-                        column: x => x.DepartmentId,
-                        principalTable: "Departments",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_EmployeePositions_Employees_EmployeeId",
                         column: x => x.EmployeeId,
@@ -504,14 +497,9 @@ namespace DocumEntum.Migrations
                 column: "WorkflowId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EmployeePositions_DepartmentId",
+                name: "IX_EmployeePositions_EmployeeId_PositionId",
                 table: "EmployeePositions",
-                column: "DepartmentId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_EmployeePositions_EmployeeId_DepartmentId_PositionId",
-                table: "EmployeePositions",
-                columns: new[] { "EmployeeId", "DepartmentId", "PositionId" },
+                columns: new[] { "EmployeeId", "PositionId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(

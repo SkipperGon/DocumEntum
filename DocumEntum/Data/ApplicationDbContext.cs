@@ -62,6 +62,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(d => d.Positions)
                 .HasForeignKey(p => p.DepartmentId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            //EmployeePosition
+            entity.HasMany(p => p.EmployeePositions)
+        .WithOne(ep => ep.Position)
+        .HasForeignKey(ep => ep.PositionId)
+        .OnDelete(DeleteBehavior.Restrict);
+
         });
 
         // ========== Employee ==========
@@ -88,21 +95,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(ep => ep.EmployeeId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(ep => ep.Department)
-                .WithMany()
-                .HasForeignKey(ep => ep.DepartmentId)
-                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(ep => ep.Position)
-                .WithMany()
-                .HasForeignKey(ep => ep.PositionId)
-                .OnDelete(DeleteBehavior.Restrict);
+         .WithMany(p => p.EmployeePositions)
+         .HasForeignKey(ep => ep.PositionId)
+         .OnDelete(DeleteBehavior.Restrict);
 
             //сотрудник не занимает одну и ту же должность
-            entity.HasIndex(ep => new { ep.EmployeeId, ep.DepartmentId, ep.PositionId })
-                .IsUnique();
-
-            entity.HasIndex(ep => ep.DepartmentId);
+            entity.HasIndex(ep => new { ep.EmployeeId, ep.PositionId }).IsUnique();
+            
         });
 
         // ========== Workflow ==========

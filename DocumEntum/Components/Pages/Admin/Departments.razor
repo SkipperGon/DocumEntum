@@ -295,20 +295,18 @@ else
         var canDelete = await OrgService.CanDeleteDepartmentAsync(dept.Id);
         if (!canDelete)
         {
-            errorMessage = "Невозможно удалить отдел: у него есть подотделы, документы или сотрудники на должностях.";
-            StateHasChanged();
-            await Task.Delay(3000);
-            errorMessage = null;
+            await JS.InvokeVoidAsync("alert", "Невозможно удалить отдел. У него есть подотделы, документы или сотрудники на должностях.");
             return;
         }
 
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить отдел '{dept.Name}' и все его подотделы?");
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить отдел '{dept.Name}'?");
         if (confirmed)
         {
             await OrgService.DeleteDepartmentAsync(dept.Id);
             await LoadData();
         }
     }
+
 
     private bool IsDescendantOf(int possibleDescendantId, int ancestorId)
     {
@@ -402,10 +400,7 @@ else
         var canDelete = await OrgService.CanDeletePositionAsync(pos.Id);
         if (!canDelete)
         {
-            positionErrorMessage = "Нельзя удалить должность, на которую назначены сотрудники.";
-            StateHasChanged();
-            await Task.Delay(2000);
-            positionErrorMessage = null;
+            await JS.InvokeVoidAsync("alert", "Нельзя удалить должность, на которую назначены сотрудники.");
             return;
         }
 

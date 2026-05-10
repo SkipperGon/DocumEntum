@@ -21,15 +21,18 @@ namespace DocumEntum.Services
         Task DeletePositionAsync(int id);
         // проверка наличия сотрудников на должности
         Task<bool> CanDeletePositionAsync(int id);
+        Task<List<Position>> GetAllPositionsWithDetailsAsync();
 
         // Сотрудники
         Task<List<Employee>> GetAllEmployeesAsync();
         Task<Employee?> GetEmployeeByUserIdAsync(string userId);
-        Task AssignEmployeeToPositionAsync(int employeeId, int departmentId, int? positionId, DateTime? startDate = null);
+        Task AssignEmployeeToPositionAsync(int employeeId, int? positionId, DateTime? startDate = null);
         Task RemoveEmployeeFromPositionAsync(int employeePositionId);
         // действующие назначения
         Task<List<EmployeePosition>> GetCurrentEmployeePositionsAsync(int employeeId);
         // кто занимает должность
         Task<List<EmployeePosition>> GetEmployeesByPositionAsync(int positionId);
+        Task<List<Employee>> GetAvailableEmployeesAsync();
+
     }
 }

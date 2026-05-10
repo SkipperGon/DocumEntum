@@ -18,5 +18,7 @@ namespace DocumEntum.Data
         public int DepartmentId { get; set; }
         [ForeignKey(nameof(DepartmentId))]
         public virtual Department Department { get; set; } = null!;
+
+        public virtual ICollection<EmployeePosition> EmployeePositions { get; set; } = new List<EmployeePosition>();
     }
 }

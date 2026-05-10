@@ -45,29 +45,27 @@ namespace DocumEntum.Services
 
         /// <summary>
         /// Возвращает ID отдела, в котором сотрудник работает по основной должности.
-        /// Если у сотрудника несколько должностей – возвращает первый попавшийся (можно уточнить логику).
+        /// Если у сотрудника несколько должностей – возвращает первый попавшийся.
         /// </summary>
         public async Task<int?> GetDepartmentIdAsync()
         {
             var emp = await GetCurrentEmployeeAsync();
             if (emp == null) return null;
             var currentPosition = await _dbContext.EmployeePositions
+                .Include(ep => ep.Position)
                 .Where(ep => ep.EmployeeId == emp.Id && ep.EndDate == null)
                 .FirstOrDefaultAsync();
-            return currentPosition?.DepartmentId;
+            return currentPosition?.Position?.DepartmentId;
         }
 
-        /// <summary>
-        /// Возвращает список всех действующих должностей сотрудника.
-        /// </summary>
         public async Task<List<EmployeePosition>> GetCurrentPositionsAsync()
         {
             var emp = await GetCurrentEmployeeAsync();
             if (emp == null) return new List<EmployeePosition>();
             if (_cachedPositions != null) return _cachedPositions;
             _cachedPositions = await _dbContext.EmployeePositions
-                .Include(ep => ep.Department)
                 .Include(ep => ep.Position)
+                    .ThenInclude(p => p.Department)
                 .Where(ep => ep.EmployeeId == emp.Id && ep.EndDate == null)
                 .ToListAsync();
             return _cachedPositions;

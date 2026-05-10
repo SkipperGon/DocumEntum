@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260509162051_upEmp1")]
-    partial class upEmp1
+    [Migration("20260510083233_PosUp2")]
+    partial class PosUp2
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -272,9 +272,6 @@ namespace DocumEntum.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("DepartmentId")
-                        .HasColumnType("integer");
-
                     b.Property<int>("EmployeeId")
                         .HasColumnType("integer");
 
@@ -289,11 +286,9 @@ namespace DocumEntum.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DepartmentId");
-
                     b.HasIndex("PositionId");
 
-                    b.HasIndex("EmployeeId", "DepartmentId", "PositionId")
+                    b.HasIndex("EmployeeId", "PositionId")
                         .IsUnique();
 
                     b.ToTable("EmployeePositions");
@@ -650,12 +645,6 @@ namespace DocumEntum.Migrations
 
             modelBuilder.Entity("DocumEntum.Data.EmployeePosition", b =>
                 {
-                    b.HasOne("DocumEntum.Data.Department", "Department")
-                        .WithMany()
-                        .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("DocumEntum.Data.Employee", "Employee")
                         .WithMany()
                         .HasForeignKey("EmployeeId")
@@ -663,11 +652,9 @@ namespace DocumEntum.Migrations
                         .IsRequired();
 
                     b.HasOne("DocumEntum.Data.Position", "Position")
-                        .WithMany()
+                        .WithMany("EmployeePositions")
                         .HasForeignKey("PositionId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Department");
 
                     b.Navigation("Employee");
 
@@ -779,6 +766,11 @@ namespace DocumEntum.Migrations
                     b.Navigation("Children");
 
                     b.Navigation("Positions");
+                });
+
+            modelBuilder.Entity("DocumEntum.Data.Position", b =>
+                {
+                    b.Navigation("EmployeePositions");
                 });
 
             modelBuilder.Entity("DocumEntum.Data.Workflow", b =>

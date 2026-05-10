@@ -27,10 +27,32 @@ namespace DocumEntum.Services
                 .ThenBy(d => d.Id)
                 .ToListAsync();
         }
-
+        public async Task<List<Position>> GetAllPositionsWithDetailsAsync()
+        {
+            return await _dbContext.Positions
+                .Include(p => p.Department)
+                .Include(p => p.EmployeePositions)
+                    .ThenInclude(ep => ep.Employee)
+                .ToListAsync();
+        }
         public async Task<Department?> GetDepartmentByIdAsync(int id)
         {
             return await _dbContext.Departments.FindAsync(id);
+        }
+        public async Task<List<Employee>> GetAvailableEmployeesAsync()
+        {
+            var employeesWithActivePosition = await _dbContext.EmployeePositions
+                .Where(ep => ep.EndDate == null)
+                .Select(ep => ep.EmployeeId)
+                .Distinct()
+                .ToListAsync();
+
+            var availableEmployees = await _dbContext.Employees
+                .Include(e => e.User)
+                .Where(e => !employeesWithActivePosition.Contains(e.Id))
+                .ToListAsync();
+
+            return availableEmployees;
         }
 
         public async Task<Department> CreateDepartmentAsync(string name, int? parentId)
@@ -73,7 +95,8 @@ namespace DocumEntum.Services
             if (hasDocuments) return false;
             // Проверяем есть ли активные назначения сотрудников на должности этого отдела
             var hasActiveEmployees = await _dbContext.EmployeePositions
-                .AnyAsync(ep => ep.DepartmentId == id && ep.EndDate == null);
+                .Include(ep => ep.Position)
+                .AnyAsync(ep => ep.Position != null && ep.Position.DepartmentId == id && ep.EndDate == null);
             return !hasActiveEmployees;
         }
 
@@ -106,12 +129,10 @@ namespace DocumEntum.Services
 
         public async Task<Position> CreatePositionAsync(int departmentId, string title, string? description = null)
         {
-            // Проверяем отдел на существование 
             var department = await _dbContext.Departments.FindAsync(departmentId);
             if (department == null)
                 throw new InvalidOperationException("Указанный отдел не существует.");
 
-            // Проверяем уникальность названия должности внутри отдела
             var exists = await _dbContext.Positions
                 .AnyAsync(p => p.DepartmentId == departmentId && p.Title == title);
             if (exists)
@@ -130,7 +151,6 @@ namespace DocumEntum.Services
 
         public async Task UpdatePositionAsync(Position position)
         {
-            // Проверяем название новой должности конфликт по названию внутри отдела
             var conflict = await _dbContext.Positions
                 .AnyAsync(p => p.DepartmentId == position.DepartmentId && p.Title == position.Title && p.Id != position.Id);
             if (conflict)
@@ -145,7 +165,6 @@ namespace DocumEntum.Services
             var position = await _dbContext.Positions.FindAsync(id);
             if (position == null) return;
 
-            // Проверяем активные назначения сотрудников на эту должность
             var hasActiveEmployees = await _dbContext.EmployeePositions
                 .AnyAsync(ep => ep.PositionId == id && ep.EndDate == null);
             if (hasActiveEmployees)
@@ -157,7 +176,6 @@ namespace DocumEntum.Services
 
         public async Task<bool> CanDeletePositionAsync(int id)
         {
-            // Проверяем на активные назначения
             var hasActiveEmployees = await _dbContext.EmployeePositions
                 .AnyAsync(ep => ep.PositionId == id && ep.EndDate == null);
             return !hasActiveEmployees;
@@ -173,40 +191,37 @@ namespace DocumEntum.Services
         {
             return await _dbContext.Employees.FirstOrDefaultAsync(e => e.UserId == userId);
         }
-        public async Task AssignEmployeeToPositionAsync(int employeeId, int departmentId, int? positionId, DateTime? startDate = null)
+
+        public async Task AssignEmployeeToPositionAsync(int employeeId, int? positionId, DateTime? startDate = null)
         {
-            // Проверяем существование сотрудника
             var employee = await _dbContext.Employees.FindAsync(employeeId);
             if (employee == null)
                 throw new InvalidOperationException("Сотрудник не найден.");
 
-            // Проверяем существование отдела
-            var department = await _dbContext.Departments.FindAsync(departmentId);
-            if (department == null)
-                throw new InvalidOperationException("Отдел не найден.");
+            // Проверка: есть ли у сотрудника уже активная должность
+            var hasActivePosition = await _dbContext.EmployeePositions
+                .AnyAsync(ep => ep.EmployeeId == employeeId && ep.EndDate == null);
+            if (hasActivePosition)
+                throw new InvalidOperationException("Сотрудник уже занимает другую должность. Сначала освободите его текущую должность.");
 
-            // Если указана должность, проверяем её принадлежность отделу
             if (positionId.HasValue)
             {
-                var position = await _dbContext.Positions
-                    .FirstOrDefaultAsync(p => p.Id == positionId && p.DepartmentId == departmentId);
+                var position = await _dbContext.Positions.FindAsync(positionId.Value);
                 if (position == null)
-                    throw new InvalidOperationException("Должность не принадлежит выбранному отделу.");
+                    throw new InvalidOperationException("Должность не найдена.");
             }
 
-            // Проверяем, нет ли уже активного назначения на ту же должность (или без должности)
+            // Проверка дублирования на эту же должность (оставляем)
             var existing = await _dbContext.EmployeePositions
                 .FirstOrDefaultAsync(ep => ep.EmployeeId == employeeId &&
-                                           ep.DepartmentId == departmentId &&
                                            ep.PositionId == positionId &&
                                            ep.EndDate == null);
             if (existing != null)
-                throw new InvalidOperationException("Сотрудник уже имеет активное назначение на эту же должность (или без должности) в данном отделе.");
+                throw new InvalidOperationException("Сотрудник уже имеет активное назначение на эту же должность.");
 
             var employeePosition = new EmployeePosition
             {
                 EmployeeId = employeeId,
-                DepartmentId = departmentId,
                 PositionId = positionId,
                 StartDate = startDate ?? DateTime.UtcNow,
                 EndDate = null
@@ -220,7 +235,6 @@ namespace DocumEntum.Services
             var ep = await _dbContext.EmployeePositions.FindAsync(employeePositionId);
             if (ep != null)
             {
-                // Мягкое удаление через дату окончания
                 ep.EndDate = DateTime.UtcNow;
                 await _dbContext.SaveChangesAsync();
             }
@@ -229,8 +243,8 @@ namespace DocumEntum.Services
         public async Task<List<EmployeePosition>> GetCurrentEmployeePositionsAsync(int employeeId)
         {
             return await _dbContext.EmployeePositions
-                .Include(ep => ep.Department)
                 .Include(ep => ep.Position)
+                    .ThenInclude(p => p.Department)
                 .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null)
                 .ToListAsync();
         }
