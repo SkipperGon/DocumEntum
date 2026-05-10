@@ -11,6 +11,7 @@
 @inject RoleManager<IdentityRole> RoleManager
 @inject ApplicationDbContext DbContext
 @inject ICurrentUserService CurrentUserService
+@inject IOrganizationService OrgService
 
 <h3>Управление пользователями</h3>
 
@@ -26,17 +27,27 @@ else
 {
     <table class="table table-striped">
         <thead>
-            <tr><th>Логин</th><th>Email</th><th>Роль</th><th>Действия</th></tr>
+            <tr><th>Логин</th><th>Имя</th><th>Email</th><th>Роль</th><th>Отдел / Должность</th><th>Действия</th></tr>
         </thead>
         <tbody>
             @foreach (var vm in userViewModels)
             {
-                // Скрываем гл.администратора (SuperAdmin)
                 if (vm.IsSuperAdmin) continue;
                 <tr>
                     <td>@vm.User.UserName</td>
+                    <td>@(string.IsNullOrEmpty(vm.FullName) ? "-" : vm.FullName)</td>
                     <td>@vm.User.Email</td>
-                    <td>@string.Join(", ", vm.Roles.Select(TranslateRole))</td>
+                    <td>@TranslateRole(vm.Role)</td>
+                    <td>
+                        @if (vm.Role == "Employee")
+                        {
+                            <span>@vm.DepartmentName / @vm.PositionName</span>
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </td>
                     <td>
                         <button class="btn btn-sm btn-primary" @onclick="() => EditUserAsync(vm.User)">Править</button>
                         <button class="btn btn-sm btn-danger" @onclick="() => DeleteUser(vm.User)">Удалить</button>
@@ -51,8 +62,7 @@ else
 
 @if (showModal)
 {
-    <!-- Модальное окно Bootstrap -->
-    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -73,16 +83,12 @@ else
                             <ValidationMessage For="() => editModel.Email" class="text-danger" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Пароль @(editingUser == null ? "(обязательно)" : "(оставьте пустым, чтобы не менять)")</label>
+                            <label class="form-label">Пароль @(editingUser == null ? "" : "(оставьте пустым, чтобы не менять)")</label>
                             <InputText type="password" @bind-Value="editModel.Password" class="form-control" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Полное имя (только для сотрудников)</label>
-                            <InputText @bind-Value="editModel.FullName" class="form-control" />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Роль (только одна)</label>
-                            <InputSelect @bind-Value="editModel.SelectedRole" class="form-control">
+                            <label class="form-label">Роль</label>
+                            <InputSelect @bind-Value="editModel.SelectedRole" @bind-Value:after="OnRoleChanged" class="form-control">
                                 <option value="">-- Выберите роль --</option>
                                 @foreach (var role in availableRoles)
                                 {
@@ -91,6 +97,37 @@ else
                             </InputSelect>
                             <ValidationMessage For="() => editModel.SelectedRole" class="text-danger" />
                         </div>
+
+                        @if (editModel.SelectedRole == "Employee")
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Отдел</label>
+                                <InputSelect @bind-Value="editModel.DepartmentId" @bind-Value:after="OnDepartmentChanged" class="form-control">
+                                    <option value="">-- Выберите отдел --</option>
+                                    @foreach (var dept in departments)
+                                    {
+                                        <option value="@dept.Id">@dept.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => editModel.DepartmentId" class="text-danger" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Должность (необязательно)</label>
+                                <InputSelect @bind-Value="editModel.PositionId" class="form-control">
+                                    <option value="">-- Выберите должность --</option>
+                                    @foreach (var pos in availablePositions)
+                                    {
+                                        <option value="@pos.Id">@pos.Title</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => editModel.PositionId" class="text-danger" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Полное имя сотрудника</label>
+                                <InputText @bind-Value="editModel.FullName" class="form-control" />
+                            </div>
+                        }
+
                         @if (!string.IsNullOrEmpty(errorMessage))
                         {
                             <div class="alert alert-danger mt-2">@errorMessage</div>
@@ -117,11 +154,18 @@ else
     private string? loadError;
     private bool isLoading = true;
 
+    // Для работы с отделами и должностями
+    private List<Department> departments = new();
+    private List<Position> availablePositions = new();
+
     private class UserViewModel
     {
         public ApplicationUser User { get; set; } = null!;
-        public List<string> Roles { get; set; } = new();
-        public bool IsSuperAdmin => Roles.Contains("SuperAdmin");
+        public string Role { get; set; } = "";
+        public bool IsSuperAdmin => Role == "SuperAdmin";
+        public string? DepartmentName { get; set; }
+        public string? PositionName { get; set; }
+        public string? FullName { get; set; }
     }
 
     protected override async Task OnInitializedAsync()
@@ -129,6 +173,7 @@ else
         try
         {
             await LoadRolesAsync();
+            await LoadDepartmentsAsync();
             await LoadUsersOptimizedAsync();
         }
         catch (Exception ex)
@@ -144,8 +189,12 @@ else
     private async Task LoadRolesAsync()
     {
         allRoles = await RoleManager.Roles.Select(r => r.Name!).ToListAsync();
-        // Исключаем SuperAdmin из доступных ролей – назначать её может только начальная настройка
         availableRoles = allRoles.Where(r => r != "SuperAdmin").ToList();
+    }
+
+    private async Task LoadDepartmentsAsync()
+    {
+        departments = await OrgService.GetAllDepartmentsFlatAsync();
     }
 
     private async Task LoadUsersOptimizedAsync()
@@ -157,27 +206,40 @@ else
                              select new { ur.UserId, RoleName = r.Name! };
 
         var userRolesList = await userRolesQuery.ToListAsync();
-
         var rolesDict = userRolesList
             .GroupBy(ur => ur.UserId)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.RoleName).ToList());
+            .ToDictionary(g => g.Key, g => g.First().RoleName); // берём первую роль (у нас одна)
 
-        userViewModels = users.Select(user => new UserViewModel
+        // Получаем текущие назначения сотрудников
+        var employeePositions = await DbContext.EmployeePositions
+            .Include(ep => ep.Employee)
+            .Include(ep => ep.Department)
+            .Include(ep => ep.Position)
+            .Where(ep => ep.EndDate == null)
+            .ToListAsync();
+
+        var userPositions = employeePositions.ToDictionary(ep => ep.Employee.UserId, ep => ep);
+
+        userViewModels = users.Select(user =>
         {
-            User = user,
-            Roles = rolesDict.GetValueOrDefault(user.Id, new List<string>())
+            var role = rolesDict.GetValueOrDefault(user.Id, "");
+            var pos = userPositions.GetValueOrDefault(user.Id);
+            return new UserViewModel
+            {
+                User = user,
+                Role = role,
+                DepartmentName = pos?.Department?.Name,
+                PositionName = pos?.Position?.Title,
+                FullName = pos?.Employee?.FullName  // <-- заполняем имя
+            };
         }).ToList();
-    }
-
-    private async Task<bool> IsSuperAdmin(ApplicationUser user)
-    {
-        return await UserManager.IsInRoleAsync(user, "SuperAdmin");
     }
 
     private async Task CreateUserAsync()
     {
         editingUser = null;
         editModel = new UserEditModel();
+        availablePositions.Clear();
         showModal = true;
         errorMessage = null;
         StateHasChanged();
@@ -193,19 +255,81 @@ else
 
         editingUser = user;
         var roles = await UserManager.GetRolesAsync(user);
-        var currentRole = roles.FirstOrDefault() ?? ""; // берём первую (и единственную) роль
+        var currentRole = roles.FirstOrDefault() ?? "";
         var employee = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == user.Id);
+    
+        EmployeePosition? employeePosition = null;
+        if (employee != null)
+        {
+            employeePosition = await DbContext.EmployeePositions
+                .FirstOrDefaultAsync(ep => ep.EmployeeId == employee.Id && ep.EndDate == null);
+        }
+
         editModel = new UserEditModel
         {
             UserName = user.UserName ?? "",
             Email = user.Email,
             Password = "",
-            FullName = employee?.FullName ?? "",
-            SelectedRole = currentRole
+            SelectedRole = currentRole,
+            FullName = employee?.FullName ?? "",   // <-- заполняем имя в форме
+            DepartmentId = employeePosition?.DepartmentId,
+            PositionId = employeePosition?.PositionId
         };
+
+        if (currentRole == "Employee" && editModel.DepartmentId.HasValue)
+        {
+            await LoadPositionsByDepartment(editModel.DepartmentId.Value);
+        }
+        else
+        {
+            availablePositions.Clear();
+        }
+        StateHasChanged();
         showModal = true;
         errorMessage = null;
-        StateHasChanged();
+    }
+
+    private async Task OnRoleChanged()
+    {
+        // Значение editModel.SelectedRole уже обновилось благодаря @bind-Value
+        var newRole = editModel.SelectedRole;
+    
+        if (newRole != "Employee")
+        {
+            editModel.DepartmentId = null;
+            editModel.PositionId = null;
+            availablePositions.Clear();
+        }
+        else
+        {
+            // Если переключились на Employee, пробуем подгрузить должности, если отдел уже выбран
+            if (editModel.DepartmentId.HasValue && editModel.DepartmentId.Value > 0)
+            {
+                await LoadPositionsByDepartment(editModel.DepartmentId.Value);
+            }
+        }
+    }
+
+    private async Task OnDepartmentChanged()
+    {
+        var deptId = editModel.DepartmentId;
+    
+        if (deptId.HasValue && deptId.Value > 0)
+        {
+            await LoadPositionsByDepartment(deptId.Value);
+            // Сбросить должность при смене отдела
+            editModel.PositionId = null;
+        }
+        else
+        {
+            availablePositions.Clear();
+            editModel.PositionId = null;
+        }
+    }
+
+    private async Task LoadPositionsByDepartment(int departmentId)
+    {
+        availablePositions = await OrgService.GetPositionsByDepartmentAsync(departmentId);
     }
 
     private async Task SaveUser()
@@ -230,11 +354,19 @@ else
             return;
         }
 
-        // Дополнительная проверка на случай, если SuperAdmin всё же просочился (на всякий случай)
         if (editModel.SelectedRole == "SuperAdmin")
         {
             errorMessage = "Назначение роли SuperAdmin через этот интерфейс запрещено.";
             return;
+        }
+
+        if (editModel.SelectedRole == "Employee")
+        {
+            if (!editModel.DepartmentId.HasValue)
+            {
+                errorMessage = "Для сотрудника необходимо выбрать отдел";
+                return;
+            }
         }
 
         try
@@ -255,7 +387,6 @@ else
                     return;
                 }
 
-                // Назначаем одну выбранную роль
                 var roleResult = await UserManager.AddToRoleAsync(newUser, editModel.SelectedRole);
                 if (!roleResult.Succeeded)
                 {
@@ -264,7 +395,7 @@ else
                     return;
                 }
 
-                // Если роль "Employee" – создаём запись в Employees
+                // Если роль Employee – создаём запись Employee и назначение на должность
                 if (editModel.SelectedRole == "Employee")
                 {
                     var employee = new Employee
@@ -274,7 +405,8 @@ else
                         Email = newUser.Email
                     };
                     DbContext.Employees.Add(employee);
-                    await DbContext.SaveChangesAsync();
+                    await DbContext.SaveChangesAsync(); // получаем Employee.Id
+                    await OrgService.AssignEmployeeToPositionAsync(employee.Id,editModel.DepartmentId!.Value, editModel.PositionId);
                 }
             }
             else
@@ -286,7 +418,6 @@ else
                     return;
                 }
 
-                // Обновляем основные поля
                 editingUser.UserName = editModel.UserName;
                 editingUser.Email = string.IsNullOrEmpty(editModel.Email) ? null : editModel.Email;
                 var updateResult = await UserManager.UpdateAsync(editingUser);
@@ -309,55 +440,62 @@ else
                     }
                 }
 
-                // Получаем текущие роли и заменяем на одну выбранную
+                // Обновление роли
                 var currentRoles = await UserManager.GetRolesAsync(editingUser);
-                // Если выбранная роль уже есть и других нет – ничего не делаем
-                if (currentRoles.Count != 1 || !currentRoles.Contains(editModel.SelectedRole))
+                if (currentRoles.FirstOrDefault() != editModel.SelectedRole)
                 {
-                    // Удаляем все текущие роли
                     if (currentRoles.Any())
-                    {
-                        var removeResult = await UserManager.RemoveFromRolesAsync(editingUser, currentRoles);
-                        if (!removeResult.Succeeded)
-                        {
-                            errorMessage = string.Join(", ", removeResult.Errors.Select(e => e.Description));
-                            return;
-                        }
-                    }
-                    // Добавляем новую роль
-                    var addResult = await UserManager.AddToRoleAsync(editingUser, editModel.SelectedRole);
-                    if (!addResult.Succeeded)
-                    {
-                        errorMessage = string.Join(", ", addResult.Errors.Select(e => e.Description));
-                        return;
-                    }
+                        await UserManager.RemoveFromRolesAsync(editingUser, currentRoles);
+                    await UserManager.AddToRoleAsync(editingUser, editModel.SelectedRole);
                 }
 
-                // Обновление Employee (если роль Employee)
+                // Обновление Employee и назначения на должность
                 var existingEmployee = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == editingUser.Id);
                 if (editModel.SelectedRole == "Employee")
                 {
                     if (existingEmployee == null)
                     {
-                        DbContext.Employees.Add(new Employee
+                        existingEmployee = new Employee
                         {
                             UserId = editingUser.Id,
                             FullName = editModel.FullName ?? editingUser.UserName,
                             Email = editingUser.Email
-                        });
+                        };
+                        DbContext.Employees.Add(existingEmployee);
+                        await DbContext.SaveChangesAsync();
                     }
                     else
                     {
                         existingEmployee.FullName = editModel.FullName ?? existingEmployee.FullName;
                         existingEmployee.Email = editingUser.Email;
+                        existingEmployee.IsActive = true;
+                        await DbContext.SaveChangesAsync();
+                    }
+
+                    // Обновляем назначение на должность
+                    var currentPosition = await DbContext.EmployeePositions
+                        .FirstOrDefaultAsync(ep => ep.EmployeeId == existingEmployee.Id && ep.EndDate == null);
+
+                    if (currentPosition == null)
+                    {
+                        await OrgService.AssignEmployeeToPositionAsync(existingEmployee.Id, editModel.DepartmentId!.Value, editModel.PositionId);
+                    }
+                    else if (currentPosition.DepartmentId != editModel.DepartmentId || currentPosition.PositionId != editModel.PositionId)
+                    {
+                        // завершаем текущее назначение
+                        currentPosition.EndDate = DateTime.UtcNow;
+                        // создаём новое
+                        await OrgService.AssignEmployeeToPositionAsync(existingEmployee.Id, editModel.DepartmentId!.Value, editModel.PositionId);;
                     }
                 }
                 else if (existingEmployee != null)
                 {
-                    // Если роль сменилась с Employee на другую – удаляем запись сотрудника
+                    // Если роль сменилась с Employee на другую – удаляем Employee и назначения
+                    var positions = await DbContext.EmployeePositions.Where(ep => ep.EmployeeId == existingEmployee.Id).ToListAsync();
+                    DbContext.EmployeePositions.RemoveRange(positions);
                     DbContext.Employees.Remove(existingEmployee);
+                    await DbContext.SaveChangesAsync();
                 }
-                await DbContext.SaveChangesAsync();
             }
 
             showModal = false;
@@ -383,6 +521,8 @@ else
             var emp = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == user.Id);
             if (emp != null)
             {
+                var positions = await DbContext.EmployeePositions.Where(ep => ep.EmployeeId == emp.Id).ToListAsync();
+                DbContext.EmployeePositions.RemoveRange(positions);
                 DbContext.Employees.Remove(emp);
                 await DbContext.SaveChangesAsync();
             }
@@ -403,6 +543,12 @@ else
             errorMessage = $"Ошибка удаления пользователя: {ex.Message}";
         }
     }
+
+    private async Task<bool> IsSuperAdmin(ApplicationUser user)
+    {
+        return await UserManager.IsInRoleAsync(user, "SuperAdmin");
+    }
+
     private string TranslateRole(string roleEn) => roleEn switch
     {
         "Admin" => "Администратор",
@@ -410,11 +556,14 @@ else
         "SuperAdmin" => "Главный администратор",
         _ => roleEn
     };
+
     private void CloseModal()
     {
         showModal = false;
         editingUser = null;
         errorMessage = null;
+        editModel = new UserEditModel();
+        availablePositions.Clear();
     }
 
     public class UserEditModel
@@ -432,5 +581,8 @@ else
 
         [Required(ErrorMessage = "Роль обязательна")]
         public string SelectedRole { get; set; } = "";
+
+        public int? DepartmentId { get; set; }
+        public int? PositionId { get; set; }
     }
 }

@@ -53,7 +53,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.HasKey(p => p.Id);
             entity.Property(p => p.Title).IsRequired().HasMaxLength(100);
-            entity.HasIndex(p => p.Title).IsUnique();
+
+            //должность уникальна внутри отдела
+            entity.HasIndex(p => new { p.DepartmentId, p.Title }).IsUnique();
+
+            //Department
+            entity.HasOne(p => p.Department)
+                .WithMany(d => d.Positions)
+                .HasForeignKey(p => p.DepartmentId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ========== Employee ==========
@@ -90,9 +98,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(ep => ep.PositionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Уникальность: сотрудник не может занимать одну и ту же должность в одном отделе дважды
+            //сотрудник не занимает одну и ту же должность
             entity.HasIndex(ep => new { ep.EmployeeId, ep.DepartmentId, ep.PositionId })
                 .IsUnique();
+
+            entity.HasIndex(ep => ep.DepartmentId);
         });
 
         // ========== Workflow ==========

@@ -31,9 +31,9 @@ namespace DocumEntum.Services
 
             var userRoles = await GetUserRolesAsync(employee.UserId);
             var employeePositions = await _dbContext.EmployeePositions
-                .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null)
-                .Select(ep => ep.PositionId)
-                .ToListAsync();
+    .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null && ep.PositionId != null)
+    .Select(ep => ep.PositionId.Value)
+    .ToListAsync();
 
             var transitions = await _dbContext.WorkflowTransitions
                 .Where(t => t.WorkflowId == document.WorkflowId && t.FromStateId == document.CurrentStateId)

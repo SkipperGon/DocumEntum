@@ -16,6 +16,7 @@
         <div class="btn-group btn-group-sm ms-2">
             <button class="btn btn-outline-secondary" @onclick="() => OnEdit.InvokeAsync(Department)" title="Редактировать">✏️</button>
             <button class="btn btn-outline-secondary" @onclick="() => OnAddChild.InvokeAsync(Department)" title="Добавить подотдел">➕</button>
+            <button class="btn btn-outline-info" @onclick="() => OnManagePositions.InvokeAsync(Department)" title="Управление должностями">📋</button>
             <button class="btn btn-outline-danger" @onclick="() => OnDelete.InvokeAsync(Department)" title="Удалить">🗑️</button>
         </div>
     </div>
@@ -28,6 +29,7 @@
                                 Children="child.Children?.ToList() ?? new List<Department>()"
                                 OnEdit="OnEdit"
                                 OnAddChild="OnAddChild"
+                                OnManagePositions="OnManagePositions"
                                 OnDelete="OnDelete" />
             }
         </ul>
@@ -39,10 +41,10 @@
     [Parameter] public List<Department> Children { get; set; } = new();
     [Parameter] public EventCallback<Department> OnEdit { get; set; }
     [Parameter] public EventCallback<Department> OnAddChild { get; set; }
+    [Parameter] public EventCallback<Department> OnManagePositions { get; set; }
     [Parameter] public EventCallback<Department> OnDelete { get; set; }
 
     private bool Expanded { get; set; } = true;
     private bool HasChildren => Children.Any();
     private void ToggleChildren() => Expanded = !Expanded;
-
 }

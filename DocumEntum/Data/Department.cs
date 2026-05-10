@@ -23,6 +23,8 @@ namespace DocumEntum.Data
         public virtual Department? Parent { get; set; }
         /// <summary>Коллекция дочерних отделов.</summary>
         public virtual ICollection<Department> Children { get; set; } = new List<Department>();
+        /// <summary>Коллекция его должностефй.</summary>
+        public virtual ICollection<Position> Positions { get; set; } = new List<Position>();
 
         // PostgreSQL ltree path для быстрых иерархических запросов
         [Column(TypeName = "ltree")]

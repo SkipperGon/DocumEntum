@@ -28,6 +28,7 @@ else
                                 Children="root.Children?.ToList() ?? new List<Department>()"
                                 OnEdit="(dept) => OpenModal(dept,null)"
                                 OnAddChild="(dept) => OpenModal(null,dept)"
+                                OnManagePositions="OpenPositionsModal"
                                 OnDelete="ConfirmDelete" />
             }
         </ul>
@@ -38,6 +39,7 @@ else
     }
 }
 
+@* Модальное окно для отдела (создание/редактирование) *@
 @if (showModal)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -61,7 +63,6 @@ else
                                 <option value="">— Корневой отдел —</option>
                                 @foreach (var dept in allDepartmentsFlat)
                                 {
-                                    // Нельзя выбрать самого себя или своего потомка (простая защита)
                                     if (editingDepartment != null && (dept.Id == editingDepartment.Id || IsDescendantOf(dept.Id, editingDepartment.Id)))
                                         continue;
                                     <option value="@dept.Id">@dept.Name</option>
@@ -83,15 +84,108 @@ else
     </div>
 }
 
+@* Модальное окно для управления должностями отдела *@
+@if (showPositionsModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Должности отдела: @selectedDepartment?.Name</h5>
+                    <button type="button" class="btn-close" @onclick="ClosePositionsModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (isLoadingPositions)
+                    {
+                        <p>Загрузка должностей...</p>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-success mb-2" @onclick="() => OpenPositionEditModal(null)">➕ Добавить должность</button>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Название</th><th>Описание</th><th>Действия</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var pos in departmentPositions)
+                                {
+                                    <tr>
+                                        <td>@pos.Title</td>
+                                        <td>@pos.Description</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary" @onclick="() => OpenPositionEditModal(pos)">✏️</button>
+                                            <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDeletePosition(pos)">🗑️</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="ClosePositionsModal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Модальное окно для добавления/редактирования должности *@
+@if (showPositionEditModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingPosition == null ? "Новая должность" : "Редактирование должности")</h5>
+                    <button type="button" class="btn-close" @onclick="ClosePositionEditModal"></button>
+                </div>
+                <EditForm Model="positionEditModel" OnValidSubmit="SavePosition">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Название</label>
+                            <InputText @bind-Value="positionEditModel.Title" class="form-control" />
+                            <ValidationMessage For="() => positionEditModel.Title" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Описание</label>
+                            <InputText @bind-Value="positionEditModel.Description" class="form-control" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(positionErrorMessage))
+                        {
+                            <div class="alert alert-danger">@positionErrorMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="ClosePositionEditModal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<Department> allDepartmentsFlat = new();
     private List<Department> rootDepartments = new();
     private bool isLoading = true;
     private bool showModal;
     private Department? editingDepartment;
-    private Department? parentForNew; // если добавляем подотдел
+    private Department? parentForNew;
     private DepartmentEditModel editModel = new();
     private string? errorMessage;
+
+    // Переменные для управления должностями
+    private bool showPositionsModal;
+    private bool isLoadingPositions;
+    private Department? selectedDepartment;
+    private List<Position> departmentPositions = new();
+    private bool showPositionEditModal;
+    private Position? editingPosition;
+    private PositionEditModel positionEditModel = new();
+    private string? positionErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -162,7 +256,6 @@ else
         {
             if (editingDepartment == null)
             {
-                // Создание
                 var newDept = new Department
                 {
                     Name = editModel.Name,
@@ -172,13 +265,11 @@ else
             }
             else
             {
-                // Редактирование
                 if (editModel.ParentId == editingDepartment.Id)
                 {
                     errorMessage = "Отдел не может быть родителем самого себя.";
                     return;
                 }
-                // Проверка на циклическую зависимость (нельзя перенести в дочерний отдел)
                 if (editModel.ParentId.HasValue && IsDescendantOf(editModel.ParentId.Value, editingDepartment.Id))
                 {
                     errorMessage = "Нельзя переместить отдел в его собственный подотдел.";
@@ -204,7 +295,7 @@ else
         var canDelete = await OrgService.CanDeleteDepartmentAsync(dept.Id);
         if (!canDelete)
         {
-            errorMessage = "Невозможно удалить отдел: у него есть подотделы или привязанные документы.";
+            errorMessage = "Невозможно удалить отдел: у него есть подотделы, документы или сотрудники на должностях.";
             StateHasChanged();
             await Task.Delay(3000);
             errorMessage = null;
@@ -239,11 +330,122 @@ else
         errorMessage = null;
     }
 
+    // ========== Управление должностями ==========
+    private async Task OpenPositionsModal(Department dept)
+    {
+        selectedDepartment = dept;
+        showPositionsModal = true;
+        await LoadPositions();
+    }
+
+    private async Task LoadPositions()
+    {
+        if (selectedDepartment == null) return;
+        isLoadingPositions = true;
+        try
+        {
+            departmentPositions = await OrgService.GetPositionsByDepartmentAsync(selectedDepartment.Id);
+        }
+        catch (Exception ex)
+        {
+            positionErrorMessage = $"Ошибка загрузки должностей: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingPositions = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenPositionEditModal(Position? pos)
+    {
+        editingPosition = pos;
+        positionEditModel = new PositionEditModel();
+        if (pos != null)
+        {
+            positionEditModel.Title = pos.Title;
+            positionEditModel.Description = pos.Description;
+        }
+        showPositionEditModal = true;
+        positionErrorMessage = null;
+        StateHasChanged();
+    }
+
+    private async Task SavePosition()
+    {
+        positionErrorMessage = null;
+        try
+        {
+            if (selectedDepartment == null) return;
+
+            if (editingPosition == null)
+            {
+                await OrgService.CreatePositionAsync(selectedDepartment.Id, positionEditModel.Title, positionEditModel.Description);
+            }
+            else
+            {
+                editingPosition.Title = positionEditModel.Title;
+                editingPosition.Description = positionEditModel.Description;
+                await OrgService.UpdatePositionAsync(editingPosition);
+            }
+            await LoadPositions();
+            ClosePositionEditModal();
+        }
+        catch (Exception ex)
+        {
+            positionErrorMessage = ex.Message;
+        }
+    }
+
+    private async Task ConfirmDeletePosition(Position pos)
+    {
+        var canDelete = await OrgService.CanDeletePositionAsync(pos.Id);
+        if (!canDelete)
+        {
+            positionErrorMessage = "Нельзя удалить должность, на которую назначены сотрудники.";
+            StateHasChanged();
+            await Task.Delay(2000);
+            positionErrorMessage = null;
+            return;
+        }
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить должность '{pos.Title}'?");
+        if (confirmed)
+        {
+            await OrgService.DeletePositionAsync(pos.Id);
+            await LoadPositions();
+        }
+    }
+
+    private void ClosePositionsModal()
+    {
+        showPositionsModal = false;
+        selectedDepartment = null;
+        departmentPositions.Clear();
+        positionErrorMessage = null;
+    }
+
+    private void ClosePositionEditModal()
+    {
+        showPositionEditModal = false;
+        editingPosition = null;
+        positionEditModel = new PositionEditModel();
+        positionErrorMessage = null;
+    }
+
+    // ========== Вспомогательные модели ==========
     public class DepartmentEditModel
     {
         [Required(ErrorMessage = "Название обязательно")]
         public string Name { get; set; } = "";
         public int? ParentId { get; set; }
+    }
+
+    public class PositionEditModel
+    {
+        [Required(ErrorMessage = "Название обязательно")]
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
     }
 }
 
@@ -252,16 +454,19 @@ else
         list-style: none;
         padding-left: 0;
     }
-    .department-tree ul {
-        list-style: none;
-        padding-left: 20px;
-    }
+
+        .department-tree ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+
     .department-item {
         margin: 5px 0;
         display: flex;
         align-items: center;
         gap: 8px;
     }
+
     .btn-group .btn {
         padding: 0 4px;
         font-size: 0.8rem;

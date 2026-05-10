@@ -14,5 +14,6 @@ namespace DocumEntum.Services
         Task<bool> IsAdminAsync();
         // только SuperAdmin
         Task<bool> IsSuperAdminAsync();
+        Task<List<EmployeePosition>> GetCurrentPositionsAsync();
     }
 }
