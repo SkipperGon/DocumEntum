@@ -1,0 +1,263 @@
+﻿@page "/Admin/Workflows"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel.DataAnnotations
+@inject IWorkflowAdminService WorkflowAdminService
+@inject IDocumentTypeService DocumentTypeService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<h3>Управление бизнес-процессами</h3>
+
+@if (isLoading)
+{
+    <p>Загрузка...</p>
+}
+else
+{
+    <div class="mb-3">
+        <label class="form-label">Фильтр по типу документа</label>
+        <select class="form-select w-25" value="@selectedDocumentTypeId" @onchange="OnDocumentTypeFilterChanged">
+            <option value="0">Все типы</option>
+            @foreach (var dt in documentTypes)
+            {
+                <option value="@dt.Id">@dt.Name</option>
+            }
+        </select>
+    </div>
+
+    <button class="btn btn-primary mb-3" @onclick="OpenCreateModal">➕ Создать процесс</button>
+
+    <table class="table table-striped">
+        <thead>
+            <tr><th>ID</th><th>Название</th><th>Описание</th><th>Тип документа</th><th>Активен</th><th>Действия</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var wf in filteredWorkflows)
+            {
+                <tr>
+                    <td>@wf.Id</td>
+                    <td>@wf.Name</td>
+                    <td>@wf.Description</td>
+                    <td>@wf.DocumentType?.Name</td>
+                    <td>@(wf.IsActive ? "Да" : "Нет")</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" @onclick="() => EditWorkflow(wf)">✏️</button>
+                        <button class="btn btn-sm btn-info" @onclick="@(() => NavigationManager.NavigateTo($"/Admin/Workflows/{wf.Id}"))">📋 Управление</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteWorkflow(wf)">🗑️</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingWorkflow == null ? "Новый процесс" : "Редактирование")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <EditForm Model="editModel" OnValidSubmit="SaveWorkflow">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Тип документа</label>
+                            <InputSelect @bind-Value="editModel.DocumentTypeId" class="form-control">
+                                <option value="">-- Выберите тип --</option>
+                                @foreach (var dt in documentTypes)
+                                {
+                                    <option value="@dt.Id">@dt.Name</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => editModel.DocumentTypeId" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Название</label>
+                            <InputText @bind-Value="editModel.Name" class="form-control" />
+                            <ValidationMessage For="() => editModel.Name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Описание</label>
+                            <InputTextArea @bind-Value="editModel.Description" class="form-control" />
+                        </div>
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="editModel.IsActive" class="form-check-input" />
+                            <label class="form-check-label">Активен</label>
+                        </div>
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger">@errorMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Workflow> workflows = new();
+    private List<Workflow> filteredWorkflows = new();
+    private List<DocumentType> documentTypes = new();
+    private int selectedDocumentTypeId = 0;
+    private bool isLoading = true;
+    private bool showModal;
+    private Workflow? editingWorkflow;
+    private WorkflowEditModel editModel = new();
+    private string? errorMessage;
+
+    [SupplyParameterFromQuery]
+    private int? documentTypeId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            workflows = await WorkflowAdminService.GetWorkflowsAsync();
+            documentTypes = await DocumentTypeService.GetAllAsync();
+            
+            // Установка фильтра из query-параметра, если он есть и валиден
+            if (documentTypeId.HasValue && documentTypeId.Value > 0 && documentTypes.Any(dt => dt.Id == documentTypeId.Value))
+            {
+                selectedDocumentTypeId = documentTypeId.Value;
+            }
+            else
+            {
+                selectedDocumentTypeId = 0;
+            }
+            
+            ApplyFilter();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        if (selectedDocumentTypeId == 0)
+            filteredWorkflows = workflows.ToList();
+        else
+            filteredWorkflows = workflows.Where(w => w.DocumentTypeId == selectedDocumentTypeId).ToList();
+    }
+
+    private async Task OnDocumentTypeFilterChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var result))
+        {
+            selectedDocumentTypeId = result;
+            ApplyFilter();
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        editingWorkflow = null;
+        editModel = new WorkflowEditModel();
+        showModal = true;
+        errorMessage = null;
+    }
+
+    private void EditWorkflow(Workflow wf)
+    {
+        editingWorkflow = wf;
+        editModel = new WorkflowEditModel
+        {
+            DocumentTypeId = wf.DocumentTypeId,
+            Name = wf.Name,
+            Description = wf.Description,
+            IsActive = wf.IsActive
+        };
+        showModal = true;
+        errorMessage = null;
+    }
+
+    private async Task SaveWorkflow()
+    {
+        try
+        {
+            if (!editModel.DocumentTypeId.HasValue || editModel.DocumentTypeId == 0)
+            {
+                errorMessage = "Необходимо выбрать тип документа";
+                return;
+            }
+
+            if (editingWorkflow == null)
+            {
+                var newWf = new Workflow
+                {
+                    Name = editModel.Name,
+                    Description = editModel.Description,
+                    IsActive = editModel.IsActive
+                };
+                await WorkflowAdminService.CreateWorkflowAsync(newWf, editModel.DocumentTypeId.Value);
+            }
+            else
+            {
+                editingWorkflow.Name = editModel.Name;
+                editingWorkflow.Description = editModel.Description;
+                editingWorkflow.IsActive = editModel.IsActive;
+                editingWorkflow.DocumentTypeId = editModel.DocumentTypeId.Value;
+                await WorkflowAdminService.UpdateWorkflowAsync(editingWorkflow);
+            }
+            await LoadData();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteWorkflow(Workflow wf)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить процесс '{wf.Name}'? Все связанные состояния и переходы также будут удалены.");
+        if (confirmed)
+        {
+            await WorkflowAdminService.DeleteWorkflowAsync(wf.Id);
+            await LoadData();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editingWorkflow = null;
+        editModel = new WorkflowEditModel();
+        errorMessage = null;
+    }
+
+    public class WorkflowEditModel
+    {
+        [Required(ErrorMessage = "Тип документа обязателен")]
+        public int? DocumentTypeId { get; set; }
+
+        [Required(ErrorMessage = "Название обязательно")]
+        public string Name { get; set; } = "";
+
+        public string? Description { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

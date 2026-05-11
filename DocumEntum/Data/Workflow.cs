@@ -20,5 +20,10 @@ namespace DocumEntum.Data
         public bool IsActive { get; set; } = true;
         // <summary>Коллекция состояний, принадлежащих процессу.</summary>
         public virtual ICollection<WorkflowState> States { get; set; } = new List<WorkflowState>();
+        /// <summary>
+        /// тип документа
+        /// </summary>
+        public int DocumentTypeId { get; set; }
+        public virtual DocumentType DocumentType { get; set; } = null!;
     }
 }

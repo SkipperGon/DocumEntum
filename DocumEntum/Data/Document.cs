@@ -27,18 +27,28 @@ namespace DocumEntum.Data
         // MIME-тип
         public string ContentType { get; set; } = string.Empty;     
 
-        /// <summary>Идентификатор автора (сотрудника).</summary>
+        /// <summary>автор (сотрудника)</summary>
         public int AuthorId { get; set; }
         public virtual Employee Author { get; set; } = null!;
-        /// <summary>Идентификатор текущего состояния workflow.</summary>
+        /// <summary>текущее состояния workflow</summary>
         public int CurrentStateId { get; set; }
         public virtual WorkflowState CurrentState { get; set; } = null!;
-        /// <summary>Идентификатор используемого процесса workflow.</summary>
+        /// <summary>используемый процесс workflow</summary>
         public int WorkflowId { get; set; }
         public virtual Workflow Workflow { get; set; } = null!;
-        /// <summary>Идентификатор отдела, к которому привязан документ (может быть null).</summary>
+        /// <summary>Идентификатор отдела, к которому привязан документ (может быть null)</summary>
         public int? DepartmentId { get; set; }
         public virtual Department? Department { get; set; }
+
+
+        public int DocumentTypeId { get; set; }
+        public virtual DocumentType DocumentType { get; set; } = null!;
+
+        /// <summary>
+        /// Помечен ли документ как удалённый (soft delete).
+        /// При мягком удалении физический файл не удаляется.
+        /// </summary>
+        public bool IsDeleted { get; set; }
 
         // <summary>
         /// Динамические атрибуты документа в формате JSONB.

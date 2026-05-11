@@ -21,6 +21,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WorkflowTransition> WorkflowTransitions { get; set; }
     public DbSet<Document> Documents { get; set; }
     public DbSet<DocumentHistory> DocumentHistories { get; set; }
+    public DbSet<DocumentType> DocumentTypes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -33,7 +34,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.NormalizedEmail).IsRequired(false);
         });
 
-        // ========== Department (рекурсивная структура) ==========
         builder.Entity<Department>(entity =>
         {
             entity.HasKey(d => d.Id);
@@ -48,7 +48,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(d => d.Path).HasMethod("gist");
         });
 
-        // ========== Position ==========
         builder.Entity<Position>(entity =>
         {
             entity.HasKey(p => p.Id);
@@ -71,7 +70,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
         });
 
-        // ========== Employee ==========
         builder.Entity<Employee>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -85,7 +83,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // ========== EmployeePosition ==========
         builder.Entity<EmployeePosition>(entity =>
         {
             entity.HasKey(ep => ep.Id);
@@ -106,14 +103,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             
         });
 
-        // ========== Workflow ==========
         builder.Entity<Workflow>(entity =>
         {
             entity.HasKey(w => w.Id);
             entity.Property(w => w.Name).IsRequired().HasMaxLength(200);
+
+            entity.HasOne(w => w.DocumentType)
+                .WithMany(dt => dt.Workflows)
+                .HasForeignKey(w => w.DocumentTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // ========== WorkflowState ==========
         builder.Entity<WorkflowState>(entity =>
         {
             entity.HasKey(ws => ws.Id);
@@ -121,12 +121,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
             // Связь Workflow -> States
             entity.HasOne(ws => ws.Workflow)
-                .WithMany(w => w.States) // <- теперь у Workflow есть свойство States
+                .WithMany(w => w.States)
                 .HasForeignKey(ws => ws.WorkflowId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(ws => ws.RequiredPosition)
+                .WithMany()
+                .HasForeignKey(ws => ws.RequiredPositionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // ========== WorkflowTransition ==========
         builder.Entity<WorkflowTransition>(entity =>
         {
             entity.HasKey(wt => wt.Id);
@@ -147,7 +151,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // ========== Document ==========
+        builder.Entity<DocumentType>(entity =>
+        {
+            entity.HasKey(dt => dt.Id);
+            entity.Property(dt => dt.Name).IsRequired().HasMaxLength(200);
+            entity.HasMany(dt => dt.AvailableDepartments)
+                .WithMany()
+                .UsingEntity(j => j.ToTable("DocumentTypeDepartments"));
+        });
+
         builder.Entity<Document>(entity =>
         {
             entity.HasKey(d => d.Id);
@@ -163,10 +175,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             // JSONB для динамических атрибутов
             entity.OwnsOne(d => d.ExtraAttributes, attr =>
             {
-                attr.ToJson(); // Сохраняет как jsonb в PostgreSQL
+                // Сохраняет как jsonb
+                attr.ToJson(); 
             });
 
-            // Связи
             entity.HasOne(d => d.Author)
                 .WithMany()
                 .HasForeignKey(d => d.AuthorId)
@@ -182,18 +194,21 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(d => d.WorkflowId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            entity.HasOne(d => d.DocumentType)
+                .WithMany()
+                .HasForeignKey(d => d.DocumentTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasOne(d => d.Department)
                 .WithMany()
                 .HasForeignKey(d => d.DepartmentId)
                 .OnDelete(DeleteBehavior.SetNull);
-
             // Индексы для поиска
             entity.HasIndex(d => d.CreatedAt);
             entity.HasIndex(d => d.CurrentStateId);
             entity.HasIndex(d => d.DepartmentId);
         });
 
-        // ========== DocumentHistory ==========
         builder.Entity<DocumentHistory>(entity =>
         {
             entity.HasKey(h => h.Id);
@@ -211,15 +226,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(h => h.ActionAt);
         });
 
-        // ========== PostgreSQL расширения ==========
-        builder.HasPostgresExtension("ltree"); // для иерархических путей отделов
+        // для иерархических путей отделов
+        builder.HasPostgresExtension("ltree");
 
-        // ========== Глобальный фильтр безопасности (закомментирован - не используется) ==========
-        // Глобальный фильтр не добавляем, т.к. он требует динамического значения.
-        // Вместо этого фильтрация выполняется в сервисах через Where(d => d.DepartmentId == currentDeptId)
-        // или через Row Level Security (RLS) в PostgreSQL.
-
-        // ========== Настройка конвертации DateTime в UTC (рекомендуется) ==========
+        // конвертация DateTime в UTC
         foreach (var entityType in builder.Model.GetEntityTypes())
         {
             foreach (var property in entityType.GetProperties())

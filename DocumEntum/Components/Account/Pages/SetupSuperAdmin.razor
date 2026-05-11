@@ -22,7 +22,7 @@ else if (SuperAdminStatus.HasSuperAdmin)
 else
 {
     <h2>Создание главного администратора</h2>
-    <p>В системе нет ни одного пользователя с ролью "SuperAdmin". Пожалуйста, создайте главного администратора.</p>
+    <p>В системе нет гл.администратора. Пожалуйста, создайте его.</p>
 
     <EditForm Model="Input" OnValidSubmit="HandleSubmit" FormName="setup-superadmin">
         <DataAnnotationsValidator />

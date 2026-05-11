@@ -23,6 +23,21 @@ namespace DocumEntum.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "ltree");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("DepartmentDocumentType", b =>
+                {
+                    b.Property<int>("AvailableDepartmentsId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DocumentTypeId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("AvailableDepartmentsId", "DocumentTypeId");
+
+                    b.HasIndex("DocumentTypeId");
+
+                    b.ToTable("DocumentTypeDepartments", (string)null);
+                });
+
             modelBuilder.Entity("DocumEntum.Data.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -145,6 +160,9 @@ namespace DocumEntum.Migrations
                     b.Property<int?>("DepartmentId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("DocumentTypeId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("FileExtension")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -157,6 +175,9 @@ namespace DocumEntum.Migrations
 
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("StoredFileName")
                         .IsRequired()
@@ -183,6 +204,8 @@ namespace DocumEntum.Migrations
                     b.HasIndex("CurrentStateId");
 
                     b.HasIndex("DepartmentId");
+
+                    b.HasIndex("DocumentTypeId");
 
                     b.HasIndex("WorkflowId");
 
@@ -228,6 +251,27 @@ namespace DocumEntum.Migrations
                     b.HasIndex("DocumentId");
 
                     b.ToTable("DocumentHistories");
+                });
+
+            modelBuilder.Entity("DocumEntum.Data.DocumentType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DocumentTypes");
                 });
 
             modelBuilder.Entity("DocumEntum.Data.Employee", b =>
@@ -329,6 +373,9 @@ namespace DocumEntum.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<int>("DocumentTypeId")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -338,6 +385,8 @@ namespace DocumEntum.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DocumentTypeId");
 
                     b.ToTable("Workflows");
                 });
@@ -350,6 +399,9 @@ namespace DocumEntum.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("CanEdit")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
@@ -357,6 +409,9 @@ namespace DocumEntum.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsInitial")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRejected")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -367,10 +422,15 @@ namespace DocumEntum.Migrations
                     b.Property<int>("Order")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("RequiredPositionId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("WorkflowId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RequiredPositionId");
 
                     b.HasIndex("WorkflowId");
 
@@ -391,9 +451,6 @@ namespace DocumEntum.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<string>("AllowedPositionIds")
-                        .HasColumnType("text");
-
-                    b.Property<string>("AllowedRoles")
                         .HasColumnType("text");
 
                     b.Property<int>("FromStateId")
@@ -548,6 +605,21 @@ namespace DocumEntum.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("DepartmentDocumentType", b =>
+                {
+                    b.HasOne("DocumEntum.Data.Department", null)
+                        .WithMany()
+                        .HasForeignKey("AvailableDepartmentsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DocumEntum.Data.DocumentType", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("DocumEntum.Data.Department", b =>
                 {
                     b.HasOne("DocumEntum.Data.Department", "Parent")
@@ -577,6 +649,12 @@ namespace DocumEntum.Migrations
                         .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("DocumEntum.Data.DocumentType", "DocumentType")
+                        .WithMany()
+                        .HasForeignKey("DocumentTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("DocumEntum.Data.Workflow", "Workflow")
                         .WithMany()
                         .HasForeignKey("WorkflowId")
@@ -603,6 +681,8 @@ namespace DocumEntum.Migrations
                     b.Navigation("CurrentState");
 
                     b.Navigation("Department");
+
+                    b.Navigation("DocumentType");
 
                     b.Navigation("ExtraAttributes")
                         .IsRequired();
@@ -669,13 +749,31 @@ namespace DocumEntum.Migrations
                     b.Navigation("Department");
                 });
 
+            modelBuilder.Entity("DocumEntum.Data.Workflow", b =>
+                {
+                    b.HasOne("DocumEntum.Data.DocumentType", "DocumentType")
+                        .WithMany("Workflows")
+                        .HasForeignKey("DocumentTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DocumentType");
+                });
+
             modelBuilder.Entity("DocumEntum.Data.WorkflowState", b =>
                 {
+                    b.HasOne("DocumEntum.Data.Position", "RequiredPosition")
+                        .WithMany()
+                        .HasForeignKey("RequiredPositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("DocumEntum.Data.Workflow", "Workflow")
                         .WithMany("States")
                         .HasForeignKey("WorkflowId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("RequiredPosition");
 
                     b.Navigation("Workflow");
                 });
@@ -763,6 +861,11 @@ namespace DocumEntum.Migrations
                     b.Navigation("Children");
 
                     b.Navigation("Positions");
+                });
+
+            modelBuilder.Entity("DocumEntum.Data.DocumentType", b =>
+                {
+                    b.Navigation("Workflows");
                 });
 
             modelBuilder.Entity("DocumEntum.Data.Position", b =>

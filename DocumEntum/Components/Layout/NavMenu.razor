@@ -19,18 +19,28 @@
         </div>
         <AuthorizeView Roles="Admin,SuperAdmin">
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin/users">
+                <NavLink class="nav-link" href="Admin/Users">
                     <span class="bi bi-people-fill"></span> Пользователи
                 </NavLink>
             </div>
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin/departments">
+                <NavLink class="nav-link" href="Admin/Departments">
                     <span class="bi bi-building"></span> Отделы
                 </NavLink>
             </div>
             <div class="nav-item px-3">
-                <NavLink class="nav-link" href="admin/positions">
+                <NavLink class="nav-link" href="Admin/Positions">
                     <span class="bi bi-briefcase-fill"></span> Должности
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="Admin/DocumentTypes">
+                    <span class="bi bi-files"></span> Типы документов
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="Admin/Workflows">
+                    <span class="bi bi-diagram-3-fill"></span> Бизнес-процессы
                 </NavLink>
             </div>
         </AuthorizeView>
@@ -46,7 +56,7 @@
                         <AntiforgeryToken />
                         <input type="hidden" name="ReturnUrl" value="@currentUrl" />
                         <button type="submit" class="nav-link">
-                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
+                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Выход''
                         </button>
                     </form>
                 </div>

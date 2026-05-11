@@ -2,8 +2,16 @@
 {
     public interface IFileStorageService
     {
-        Task<string> SaveFileAsync(Stream fileStream, string originalFileName);
-        Task<Stream?> GetFileStreamAsync(string storedFileNameGuid);
-        Task DeleteFileAsync(string storedFileNameGuid);
+        // cохранить файл по относительному пути
+        Task<string> SaveFileAsync(Stream fileStream, string originalFileName, string subFolder = "");
+
+        // Получить поток файла по относительному пути
+        Task<Stream?> GetFileStreamAsync(string relativePath);
+
+        // Удалить файл по относительному пути
+        Task DeleteFileAsync(string relativePath);
+
+        // Переместить файл по относительному пути
+        Task<string> MoveFileAsync(string sourceRelativePath, string targetSubFolder);
     }
 }

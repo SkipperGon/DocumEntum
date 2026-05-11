@@ -29,6 +29,8 @@ namespace DocumEntum
             builder.Services.AddSingleton<SuperAdminStatusService>();
             builder.Services.AddScoped<IFileStorageService, FileStorageService>();
             builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+            builder.Services.AddScoped<IDocumentTypeService, DocumentTypeService>();
+            builder.Services.AddScoped<IWorkflowAdminService, WorkflowAdminService>();
             builder.Services.AddScoped<IWorkflowService, WorkflowService>();
             builder.Services.AddScoped<IDocumentService, DocumentService>();
             builder.Services.AddScoped<IOrganizationService, OrganizationService>();
@@ -96,9 +98,21 @@ namespace DocumEntum
                 superAdminStatus.HasSuperAdmin = superAdmins.Any();
 
                 if (superAdminStatus.HasSuperAdmin)
-                    Console.WriteLine("[INFO] Главный администратор (SuperAdmin) найден в БД при запуске.");
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("\n------------------------------------------------");
+                    Console.WriteLine("[INFO] Главный администратор найден в БД при запуске");
+                    Console.WriteLine("------------------------------------------------\n");
+                }
                 else
-                    Console.WriteLine("[WARN] Главный администратор (SuperAdmin) НЕ найден. При первом входе потребуется создание.");
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.WriteLine("\n------------------------------------------------");
+                    Console.WriteLine("WARN] Главный администратор не найден в БД при запуске");
+                    Console.WriteLine("При первом входе потребуется создание по /Account/SetupSuperAdmin");
+                    Console.WriteLine("------------------------------------------------\n");
+                    Console.ResetColor();
+                }
             }
 
             app.Run();

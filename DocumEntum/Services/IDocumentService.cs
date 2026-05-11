@@ -4,7 +4,7 @@ namespace DocumEntum.Services
 {
     public interface IDocumentService
     {
-        // Создание документа (только для Employee)
+        // Создание документа (только для сотрудников)
         Task<Document> CreateDocumentAsync(string title, int workflowId, int authorId, int? departmentId,
             Dictionary<string, object> extraAttributes, Stream fileStream, string originalFileName, long fileSize, string contentType);
 
@@ -18,7 +18,9 @@ namespace DocumEntum.Services
         Task DeleteDocumentAsync(int id);
 
         // Административные методы
-        Task<List<Document>> GetAllDocumentsAsync();           // только для администратора
-        Task<List<Document>> GetDocumentsByDepartmentAsync(int departmentId); // для администратора
+        // для админов
+        Task<List<Document>> GetAllDocumentsAsync(bool includeDeleted = false);
+        Task<List<Document>> GetDocumentsByDepartmentAsync(int departmentId, bool includeDeleted = false);
+        Task UpdateDocumentFileAsync(int documentId, Stream newFileStream, string originalFileName, long fileSize, string contentType);
     }
 }

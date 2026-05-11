@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     /// <inheritdoc />
-    public partial class PosUp2 : Migration
+    public partial class TypeDocAdd1 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -77,18 +77,17 @@ namespace DocumEntum.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Workflows",
+                name: "DocumentTypes",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Description = table.Column<string>(type: "text", nullable: true),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false)
+                    Description = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Workflows", x => x.Id);
+                    table.PrimaryKey("PK_DocumentTypes", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -241,27 +240,49 @@ namespace DocumEntum.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "WorkflowStates",
+                name: "DocumentTypeDepartments",
+                columns: table => new
+                {
+                    AvailableDepartmentsId = table.Column<int>(type: "integer", nullable: false),
+                    DocumentTypeId = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DocumentTypeDepartments", x => new { x.AvailableDepartmentsId, x.DocumentTypeId });
+                    table.ForeignKey(
+                        name: "FK_DocumentTypeDepartments_Departments_AvailableDepartmentsId",
+                        column: x => x.AvailableDepartmentsId,
+                        principalTable: "Departments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_DocumentTypeDepartments_DocumentTypes_DocumentTypeId",
+                        column: x => x.DocumentTypeId,
+                        principalTable: "DocumentTypes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Workflows",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    WorkflowId = table.Column<int>(type: "integer", nullable: false),
-                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     Description = table.Column<string>(type: "text", nullable: true),
-                    IsInitial = table.Column<bool>(type: "boolean", nullable: false),
-                    IsFinal = table.Column<bool>(type: "boolean", nullable: false),
-                    Order = table.Column<int>(type: "integer", nullable: false)
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    DocumentTypeId = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_WorkflowStates", x => x.Id);
+                    table.PrimaryKey("PK_Workflows", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_WorkflowStates_Workflows_WorkflowId",
-                        column: x => x.WorkflowId,
-                        principalTable: "Workflows",
+                        name: "FK_Workflows_DocumentTypes_DocumentTypeId",
+                        column: x => x.DocumentTypeId,
+                        principalTable: "DocumentTypes",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -293,6 +314,39 @@ namespace DocumEntum.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "WorkflowStates",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    WorkflowId = table.Column<int>(type: "integer", nullable: false),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "text", nullable: true),
+                    IsInitial = table.Column<bool>(type: "boolean", nullable: false),
+                    IsFinal = table.Column<bool>(type: "boolean", nullable: false),
+                    IsRejected = table.Column<bool>(type: "boolean", nullable: false),
+                    Order = table.Column<int>(type: "integer", nullable: false),
+                    RequiredPositionId = table.Column<int>(type: "integer", nullable: true),
+                    CanEdit = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_WorkflowStates", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_WorkflowStates_Positions_RequiredPositionId",
+                        column: x => x.RequiredPositionId,
+                        principalTable: "Positions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_WorkflowStates_Workflows_WorkflowId",
+                        column: x => x.WorkflowId,
+                        principalTable: "Workflows",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Documents",
                 columns: table => new
                 {
@@ -308,6 +362,8 @@ namespace DocumEntum.Migrations
                     CurrentStateId = table.Column<int>(type: "integer", nullable: false),
                     WorkflowId = table.Column<int>(type: "integer", nullable: false),
                     DepartmentId = table.Column<int>(type: "integer", nullable: true),
+                    DocumentTypeId = table.Column<int>(type: "integer", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     ExtraAttributes = table.Column<string>(type: "jsonb", nullable: false)
@@ -321,6 +377,12 @@ namespace DocumEntum.Migrations
                         principalTable: "Departments",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_Documents_DocumentTypes_DocumentTypeId",
+                        column: x => x.DocumentTypeId,
+                        principalTable: "DocumentTypes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Documents_Employees_AuthorId",
                         column: x => x.AuthorId,
@@ -351,7 +413,6 @@ namespace DocumEntum.Migrations
                     FromStateId = table.Column<int>(type: "integer", nullable: false),
                     ToStateId = table.Column<int>(type: "integer", nullable: false),
                     ActionName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    AllowedRoles = table.Column<string>(type: "text", nullable: true),
                     AllowedPositionIds = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
@@ -492,9 +553,19 @@ namespace DocumEntum.Migrations
                 column: "DepartmentId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Documents_DocumentTypeId",
+                table: "Documents",
+                column: "DocumentTypeId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Documents_WorkflowId",
                 table: "Documents",
                 column: "WorkflowId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DocumentTypeDepartments_DocumentTypeId",
+                table: "DocumentTypeDepartments",
+                column: "DocumentTypeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmployeePositions_EmployeeId_PositionId",
@@ -517,6 +588,16 @@ namespace DocumEntum.Migrations
                 table: "Positions",
                 columns: new[] { "DepartmentId", "Title" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Workflows_DocumentTypeId",
+                table: "Workflows",
+                column: "DocumentTypeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_WorkflowStates_RequiredPositionId",
+                table: "WorkflowStates",
+                column: "RequiredPositionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_WorkflowStates_WorkflowId",
@@ -561,6 +642,9 @@ namespace DocumEntum.Migrations
                 name: "DocumentHistories");
 
             migrationBuilder.DropTable(
+                name: "DocumentTypeDepartments");
+
+            migrationBuilder.DropTable(
                 name: "EmployeePositions");
 
             migrationBuilder.DropTable(
@@ -573,22 +657,25 @@ namespace DocumEntum.Migrations
                 name: "Documents");
 
             migrationBuilder.DropTable(
-                name: "Positions");
-
-            migrationBuilder.DropTable(
                 name: "Employees");
 
             migrationBuilder.DropTable(
                 name: "WorkflowStates");
 
             migrationBuilder.DropTable(
-                name: "Departments");
-
-            migrationBuilder.DropTable(
                 name: "AspNetUsers");
 
             migrationBuilder.DropTable(
+                name: "Positions");
+
+            migrationBuilder.DropTable(
                 name: "Workflows");
+
+            migrationBuilder.DropTable(
+                name: "Departments");
+
+            migrationBuilder.DropTable(
+                name: "DocumentTypes");
         }
     }
 }

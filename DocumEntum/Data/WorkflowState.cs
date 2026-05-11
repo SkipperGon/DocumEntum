@@ -23,7 +23,20 @@ namespace DocumEntum.Data
         public bool IsInitial { get; set; }
         /// <summary>Является ли состояние конечным (процесс завершён).</summary>
         public bool IsFinal { get; set; }
-        /// <summary>Порядковый номер для визуализации (опционально).</summary>
+        /// <summary>
+        /// Является ли состояние окончательной браковкой (отказ без возможности доработки).
+        /// При переходе в такое состояние файл документа удаляется.
+        /// </summary>
+        public bool IsRejected { get; set; }
+
+        /// <summary>Порядковый номер для визуализации</summary>
         public int Order { get; set; }
+
+
+        public int? RequiredPositionId { get; set; }
+        public virtual Position? RequiredPosition { get; set; }
+        /// <summary> Разрешено заменять файлы
+        /// </summary>
+        public bool CanEdit { get; set; }
     }
 }

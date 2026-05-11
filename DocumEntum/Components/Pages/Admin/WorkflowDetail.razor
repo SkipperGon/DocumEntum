@@ -1,0 +1,469 @@
+﻿@page "/Admin/Workflows/{WorkflowId:int}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@inject IWorkflowAdminService WorkflowAdminService
+@inject IOrganizationService OrgService
+@inject RoleManager<IdentityRole> RoleManager
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+@if (workflow == null)
+{
+    <p>Загрузка...</p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center">
+        <h3>Управление процессом: @workflow.Name</h3>
+        <button class="btn btn-secondary" @onclick="@(() => NavigationManager.NavigateTo("/Admin/Workflows"))">← Назад</button>
+    </div>
+    <p>@workflow.Description</p>
+
+    <ul class="nav nav-tabs mt-3">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "states" ? "active" : "")" @onclick='@(() => activeTab = "states")'>Состояния</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "transitions" ? "active" : "")" @onclick='@(() => activeTab = "transitions")'>Переходы</button>
+        </li>
+    </ul>
+
+    <div class="tab-content mt-3">
+        @if (activeTab == "states")
+        {
+            <button class="btn btn-success mb-2" @onclick="() => OpenStateModal(null)">➕ Добавить состояние</button>
+            <table class="table table-bordered">
+                <thead>
+                    <tr><th>Название</th><th>Описание</th><th>Начало</th><th>Конец</th><th>Порядок</th><th>Должность</th><th>Можно редактировать</th><th>Действия</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var state in states)
+                    {
+                        <tr>
+                            <td>@state.Name</td>
+                            <td>@state.Description</td>
+                            <td>@(state.IsInitial ? "✓" : "")</td>
+                            <td>@(state.IsFinal ? "✓" : "")</td>
+                            <td>@state.Order</td>
+                            <td>@(state.RequiredPosition?.Title ?? "—")</td>
+                            <td>@(state.CanEdit ? "Да" : "Нет")</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" @onclick="() => OpenStateModal(state)">✏️</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteState(state)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <button class="btn btn-success mb-2" @onclick="() => OpenTransitionModal(null)">➕ Добавить переход</button>
+            <table class="table table-bordered">
+                <thead>
+                    <tr><th>Из состояния</th><th>В состояние</th><th>Действие</th><th>Разрешённые должности</th><th>Действия</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var trans in transitions)
+                    {
+                        <tr>
+                            <td>@trans.FromState?.Name</td>
+                            <td>@trans.ToState?.Name</td>
+                            <td>@trans.ActionName</td>
+                            <td>@(trans.AllowedPositionIds != null ? string.Join(", ", trans.AllowedPositionIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(id => GetPositionTitle(int.Parse(id)))) : "—")</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" @onclick="() => OpenTransitionModal(trans)">✏️</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteTransition(trans)">🗑️</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+@* Модальное окно состояния *@
+@if (showStateModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingState == null ? "Новое состояние" : "Редактирование состояния")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseStateModal"></button>
+                </div>
+                <EditForm Model="stateEditModel" OnValidSubmit="SaveState">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Название</label>
+                            <InputText @bind-Value="stateEditModel.Name" class="form-control" />
+                            <ValidationMessage For="() => stateEditModel.Name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Описание</label>
+                            <InputTextArea @bind-Value="stateEditModel.Description" class="form-control" />
+                        </div>
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="stateEditModel.IsInitial" class="form-check-input" />
+                            <label class="form-check-label">Начальное состояние</label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="stateEditModel.IsFinal" class="form-check-input" />
+                            <label class="form-check-label">Конечное состояние</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Порядок</label>
+                            <InputNumber @bind-Value="stateEditModel.Order" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Обязательная должность (опционально)</label>
+                            <InputSelect @bind-Value="stateEditModel.RequiredPositionId" class="form-control">
+                                <option value="">— Не привязана —</option>
+                                @foreach (var pos in allPositions)
+                                {
+                                    <option value="@pos.Id">@pos.Title (@pos.Department?.Name)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="stateEditModel.CanEdit" class="form-check-input" />
+                            <label class="form-check-label">Разрешено редактирование документа на этом этапе</label>
+                        </div>
+                        @if (!string.IsNullOrEmpty(stateErrorMessage))
+                        {
+                            <div class="alert alert-danger">@stateErrorMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseStateModal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@* Модальное окно перехода *@
+@if (showTransitionModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingTransition == null ? "Новый переход" : "Редактирование перехода")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseTransitionModal"></button>
+                </div>
+                <EditForm Model="transitionEditModel" OnValidSubmit="SaveTransition">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Из состояния</label>
+                            <InputSelect @bind-Value="transitionEditModel.FromStateId" class="form-control">
+                                <option value="">— Выберите —</option>
+                                @foreach (var s in states)
+                                {
+                                    <option value="@s.Id">@s.Name</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => transitionEditModel.FromStateId" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">В состояние</label>
+                            <InputSelect @bind-Value="transitionEditModel.ToStateId" class="form-control">
+                                <option value="">— Выберите —</option>
+                                @foreach (var s in states)
+                                {
+                                    <option value="@s.Id">@s.Name</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => transitionEditModel.ToStateId" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Действие</label>
+                            <InputText @bind-Value="transitionEditModel.ActionName" class="form-control" />
+                            <ValidationMessage For="() => transitionEditModel.ActionName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Разрешённые должности (мультивыбор)</label>
+                            <select multiple class="form-control" size="5" @bind="transitionEditModel.SelectedPositionIds">
+                                @foreach (var pos in allPositions)
+                                {
+                                    <option value="@pos.Id">@pos.Title (@pos.Department?.Name)</option>
+                                }
+                            </select>
+                            <small class="text-muted">Удерживайте Ctrl для выбора нескольких</small>
+                        </div>
+                        @if (!string.IsNullOrEmpty(transitionErrorMessage))
+                        {
+                            <div class="alert alert-danger">@transitionErrorMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseTransitionModal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int WorkflowId { get; set; }
+    private Workflow? workflow;
+    private string activeTab = "states";
+
+    private List<WorkflowState> states = new();
+    private List<WorkflowTransition> transitions = new();
+    private List<Position> allPositions = new();
+    private List<string> allRoles = new();
+
+    // State modal
+    private bool showStateModal;
+    private WorkflowState? editingState;
+    private StateEditModel stateEditModel = new();
+    private string? stateErrorMessage;
+
+    // Transition modal
+    private bool showTransitionModal;
+    private WorkflowTransition? editingTransition;
+    private TransitionEditModel transitionEditModel = new();
+    private string? transitionErrorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkflow();
+        await LoadAllPositions();
+        await LoadAllRoles();
+        await LoadStates();
+        await LoadTransitions();
+    }
+
+    private async Task LoadWorkflow()
+    {
+        workflow = await WorkflowAdminService.GetWorkflowByIdAsync(WorkflowId);
+        if (workflow == null)
+            NavigationManager.NavigateTo("/Admin/Workflows");
+    }
+
+    private async Task LoadAllPositions()
+    {
+        allPositions = await OrgService.GetAllPositionsWithDetailsAsync();
+    }
+
+    private async Task LoadAllRoles()
+    {
+        var roles = await RoleManager.Roles.ToListAsync();
+        allRoles = roles.Select(r => r.Name!).Where(n => n != "SuperAdmin").ToList();
+    }
+
+    private async Task LoadStates()
+    {
+        if (workflow == null) return;
+        states = await WorkflowAdminService.GetStatesForWorkflowAsync(workflow.Id);
+        StateHasChanged();
+    }
+
+    private async Task LoadTransitions()
+    {
+        if (workflow == null) return;
+        transitions = await WorkflowAdminService.GetTransitionsForWorkflowAsync(workflow.Id);
+        StateHasChanged();
+    }
+
+    private string GetPositionTitle(int posId)
+    {
+        var pos = allPositions.FirstOrDefault(p => p.Id == posId);
+        return pos?.Title ?? posId.ToString();
+    }
+
+    // ---------- State operations ----------
+    private void OpenStateModal(WorkflowState? state)
+    {
+        editingState = state;
+        if (state != null)
+        {
+            stateEditModel = new StateEditModel
+            {
+                Name = state.Name,
+                Description = state.Description,
+                IsInitial = state.IsInitial,
+                IsFinal = state.IsFinal,
+                Order = state.Order,
+                RequiredPositionId = state.RequiredPositionId,
+                CanEdit = state.CanEdit
+            };
+        }
+        else
+        {
+            stateEditModel = new StateEditModel();
+        }
+        showStateModal = true;
+        stateErrorMessage = null;
+    }
+
+    private async Task SaveState()
+    {
+        try
+        {
+            if (editingState == null)
+            {
+                var newState = new WorkflowState
+                {
+                    WorkflowId = WorkflowId,
+                    Name = stateEditModel.Name,
+                    Description = stateEditModel.Description,
+                    IsInitial = stateEditModel.IsInitial,
+                    IsFinal = stateEditModel.IsFinal,
+                    Order = stateEditModel.Order,
+                    RequiredPositionId = stateEditModel.RequiredPositionId,
+                    CanEdit = stateEditModel.CanEdit
+                };
+                await WorkflowAdminService.CreateStateAsync(newState);
+            }
+            else
+            {
+                editingState.Name = stateEditModel.Name;
+                editingState.Description = stateEditModel.Description;
+                editingState.IsInitial = stateEditModel.IsInitial;
+                editingState.IsFinal = stateEditModel.IsFinal;
+                editingState.Order = stateEditModel.Order;
+                editingState.RequiredPositionId = stateEditModel.RequiredPositionId;
+                editingState.CanEdit = stateEditModel.CanEdit;
+                await WorkflowAdminService.UpdateStateAsync(editingState);
+            }
+            await LoadStates();
+            CloseStateModal();
+        }
+        catch (Exception ex)
+        {
+            stateErrorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteState(WorkflowState state)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", $"Удалить состояние '{state.Name}'?"))
+        {
+            await WorkflowAdminService.DeleteStateAsync(state.Id);
+            await LoadStates();
+        }
+    }
+
+    private void CloseStateModal()
+    {
+        showStateModal = false;
+        editingState = null;
+        stateEditModel = new StateEditModel();
+        stateErrorMessage = null;
+    }
+
+    private void OpenTransitionModal(WorkflowTransition? transition)
+    {
+        editingTransition = transition;
+        if (transition != null)
+        {
+            transitionEditModel = new TransitionEditModel
+            {
+                FromStateId = transition.FromStateId,
+                ToStateId = transition.ToStateId,
+                ActionName = transition.ActionName,
+                SelectedPositionIds = (transition.AllowedPositionIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToArray()
+            };
+        }
+        else
+        {
+            transitionEditModel = new TransitionEditModel();
+        }
+        showTransitionModal = true;
+        transitionErrorMessage = null;
+    }
+
+    private async Task SaveTransition()
+    {
+        try
+        {
+            var allowedPositionsStr = transitionEditModel.SelectedPositionIds != null && transitionEditModel.SelectedPositionIds.Any()
+                ? string.Join(",", transitionEditModel.SelectedPositionIds)
+                : null;
+
+            if (editingTransition == null)
+            {
+                var newTransition = new WorkflowTransition
+                {
+                    WorkflowId = WorkflowId,
+                    FromStateId = transitionEditModel.FromStateId,
+                    ToStateId = transitionEditModel.ToStateId,
+                    ActionName = transitionEditModel.ActionName,
+                    AllowedPositionIds = allowedPositionsStr
+                };
+                await WorkflowAdminService.CreateTransitionAsync(newTransition);
+            }
+            else
+            {
+                editingTransition.FromStateId = transitionEditModel.FromStateId;
+                editingTransition.ToStateId = transitionEditModel.ToStateId;
+                editingTransition.ActionName = transitionEditModel.ActionName;
+                editingTransition.AllowedPositionIds = allowedPositionsStr;
+                await WorkflowAdminService.UpdateTransitionAsync(editingTransition);
+            }
+            await LoadTransitions();
+            CloseTransitionModal();
+        }
+        catch (Exception ex)
+        {
+            transitionErrorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteTransition(WorkflowTransition transition)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", $"Удалить переход '{transition.ActionName}'?"))
+        {
+            await WorkflowAdminService.DeleteTransitionAsync(transition.Id);
+            await LoadTransitions();
+        }
+    }
+
+    private void CloseTransitionModal()
+    {
+        showTransitionModal = false;
+        editingTransition = null;
+        transitionEditModel = new TransitionEditModel();
+        transitionErrorMessage = null;
+    }
+
+    // ---------- ViewModels ----------
+    public class StateEditModel
+    {
+        [Required(ErrorMessage = "Название обязательно")]
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public bool IsInitial { get; set; }
+        public bool IsFinal { get; set; }
+        public int Order { get; set; }
+        public int? RequiredPositionId { get; set; }
+        public bool CanEdit { get; set; }
+    }
+
+    public class TransitionEditModel
+    {
+        [Required(ErrorMessage = "Выберите исходное состояние")]
+        public int FromStateId { get; set; }
+        [Required(ErrorMessage = "Выберите целевое состояние")]
+        public int ToStateId { get; set; }
+        [Required(ErrorMessage = "Укажите название действия")]
+        public string ActionName { get; set; } = "";
+        public string? AllowedRoles { get; set; }
+        public int[] SelectedPositionIds { get; set; } = [];
+    }
+}

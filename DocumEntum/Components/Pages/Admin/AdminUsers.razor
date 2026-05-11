@@ -1,4 +1,4 @@
-﻿@page "/admin/users"
+﻿@page "/Admin/Users"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Authorization
@@ -349,7 +349,7 @@ else
 
         if (editModel.SelectedRole == "SuperAdmin")
         {
-            errorMessage = "Назначение роли SuperAdmin через этот интерфейс запрещено.";
+            errorMessage = "Назначение роли гл.администратора через этот интерфейс запрещено.";
             return;
         }
 

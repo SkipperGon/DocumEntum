@@ -27,12 +27,7 @@ namespace DocumEntum.Data
         /// </summary>
         [Required]
         [MaxLength(200)]
-        public string ActionName { get; set; } = string.Empty; // "Submit", "Approve", "Reject"
-        /// <summary>
-        /// Список ролей (через запятую), которые могут выполнить переход.
-        /// Пример: "Admin,Manager"
-        /// </summary>
-        public string? AllowedRoles { get; set; }
+        public string ActionName { get; set; } = string.Empty;
         /// <summary>
         /// Список идентификаторов должностей (через запятую), которые могут выполнить переход.
         /// Пример: "1,5,7"

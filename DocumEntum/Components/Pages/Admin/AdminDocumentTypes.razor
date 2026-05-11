@@ -1,0 +1,213 @@
+﻿@page "/Admin/DocumentTypes"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel.DataAnnotations
+@inject IDocumentTypeService DocumentTypeService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<h3>Типы документов</h3>
+
+@if (isLoading)
+{
+    <p>Загрузка...</p>
+}
+else
+{
+    <button class="btn btn-primary mb-3" @onclick="OpenCreateModal">➕ Создать тип</button>
+
+    <table class="table table-striped">
+        <thead>
+            <tr><th>ID</th><th>Название</th><th>Описание</th><th>Доступные отделы</th><th>Действия</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var dt in documentTypes)
+            {
+                <tr>
+                    <td>@dt.Id</td>
+                    <td>@dt.Name</td>
+                    <td>@dt.Description</td>
+                    <td>
+                        @if (dt.AvailableDepartments.Any())
+                        {
+                            @string.Join(", ", dt.AvailableDepartments.Select(d => d.Name))
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" @onclick="() => OpenEditModal(dt)">✏️</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteDocumentType(dt)">🗑️</button>
+                        <button class="btn btn-sm btn-info" @onclick="@(() => NavigationManager.NavigateTo($"/Admin/Workflows?documentTypeId={dt.Id}"))">📋 Процессы</button>
+                     </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingDocumentType == null ? "Новый тип документа" : "Редактирование")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <EditForm Model="editModel" OnValidSubmit="SaveDocumentType">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Название</label>
+                            <InputText @bind-Value="editModel.Name" class="form-control" />
+                            <ValidationMessage For="() => editModel.Name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Описание</label>
+                            <InputTextArea @bind-Value="editModel.Description" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Доступные отделы</label>
+                            <select multiple class="form-control" size="6" @bind="editModel.SelectedDepartmentIds">
+                                @foreach (var dept in allDepartments)
+                                {
+                                    <option value="@dept.Id">@dept.Name</option>
+                                }
+                            </select>
+                            <small class="text-muted">Удерживайте Ctrl для выбора нескольких отделов</small>
+                        </div>
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger mt-2">@errorMessage</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<DocumentType> documentTypes = new();
+    private List<Department> allDepartments = new();
+    private bool isLoading = true;
+    private bool showModal;
+    private DocumentType? editingDocumentType;
+    private DocumentTypeEditModel editModel = new();
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            documentTypes = await DocumentTypeService.GetAllAsync();
+            allDepartments = await DocumentTypeService.GetAllDepartmentsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        editingDocumentType = null;
+        editModel = new DocumentTypeEditModel();
+        showModal = true;
+        errorMessage = null;
+    }
+
+    private void OpenEditModal(DocumentType dt)
+    {
+        editingDocumentType = dt;
+        editModel = new DocumentTypeEditModel
+        {
+            Name = dt.Name,
+            Description = dt.Description,
+            SelectedDepartmentIds = dt.AvailableDepartments.Select(d => d.Id).ToArray()
+        };
+        showModal = true;
+        errorMessage = null;
+    }
+
+    private async Task SaveDocumentType()
+    {
+        try
+        {
+            if (editingDocumentType == null)
+            {
+                var newDt = new DocumentType
+                {
+                    Name = editModel.Name,
+                    Description = editModel.Description
+                };
+                await DocumentTypeService.CreateAsync(newDt, editModel.SelectedDepartmentIds.ToList());
+            }
+            else
+            {
+                editingDocumentType.Name = editModel.Name;
+                editingDocumentType.Description = editModel.Description;
+                await DocumentTypeService.UpdateAsync(editingDocumentType, editModel.SelectedDepartmentIds.ToList());
+            }
+            await LoadData();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteDocumentType(DocumentType dt)
+    {
+        try
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить тип документа '{dt.Name}'? Все связанные бизнес-процессы также будут удалены.");
+            if (confirmed)
+            {
+                await DocumentTypeService.DeleteAsync(dt.Id);
+                await LoadData();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editingDocumentType = null;
+        editModel = new DocumentTypeEditModel();
+        errorMessage = null;
+    }
+
+    public class DocumentTypeEditModel
+    {
+        [Required(ErrorMessage = "Название обязательно")]
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public int[] SelectedDepartmentIds { get; set; } = Array.Empty<int>();
+    }
+}
