@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Components\Shared\" />
     <Folder Include="Migrations\" />
   </ItemGroup>
 

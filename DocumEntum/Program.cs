@@ -80,6 +80,14 @@ namespace DocumEntum
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();
 
+            app.MapGet("/api/documents/{id:int}/download", async (int id, IDocumentService documentService) =>
+            {
+                var result = await documentService.GetDocumentFileAsync(id);
+                if (result == null) return Results.NotFound();
+                var (stream, contentType, fileName, _) = result.Value;
+                return Results.File(stream, contentType, fileName);
+            }).RequireAuthorization();
+
             // Add additional endpoints required by the Identity /Account Razor components.
             app.MapAdditionalIdentityEndpoints();
             //создаём роли

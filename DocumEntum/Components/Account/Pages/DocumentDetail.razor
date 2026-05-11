@@ -1,0 +1,264 @@
+﻿@page "/Document/{id:int}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using System.Text.Json
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.AspNetCore.Authorization
+@inject IDocumentService DocumentService
+@inject IWorkflowService WorkflowService
+@inject ICurrentUserService CurrentUserService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+@if (document == null)
+{
+    <p>Загрузка...</p>
+}
+else if (accessDenied)
+{
+    <p class="text-danger">Доступ к документу запрещён.</p>
+}
+else
+{
+    <h3>@document.Title</h3>
+    <div class="row">
+        <div class="col-md-6">
+            <table class="table table-bordered">
+                <tr><th>ID</th><td>@document.Id</td></tr>
+                <tr><th>Тип</th><td>@document.DocumentType?.Name</td></tr>
+                <tr><th>Статус</th><td>@document.CurrentState?.Name</td></tr>
+                <tr><th>Автор</th><td>@document.Author?.FullName</td></tr>
+                <tr><th>Отдел</th><td>@document.Department?.Name</td></tr>
+                <tr><th>Дата создания</th><td>@document.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td></tr>
+                <tr>
+                    <th>Файл</th>
+                    <td>
+                        @if (!string.IsNullOrEmpty(document.StoredFileName))
+                        {
+                            <button class="btn btn-sm btn-success" @onclick="DownloadFile">Скачать</button>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Нет файла</span>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <th>Доп. атрибуты</th>
+                    <td>
+                        @if (extraAttributes.Any())
+                        {
+                            <ul>
+                                @foreach (var attr in extraAttributes)
+                                {
+                                    <li><strong>@attr.Key</strong>: @(attr.Value?.ToString() ?? "null")</li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                        @if (canEditAttributes)
+                        {
+                            <button class="btn btn-sm btn-secondary" @onclick="EditAttributes">Редактировать</button>
+                        }
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div class="col-md-6">
+            <h4>История переходов</h4>
+            @if (history.Any())
+            {
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th>Дата</th><th>Действие</th><th>Пользователь</th><th>Комментарий</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var h in history)
+                        {
+                            <tr>
+                                <td>@h.ActionAt.ToString("dd.MM.yyyy HH:mm")</td>
+                                <td>@h.ActionName</td>
+                                <td>@h.ActionBy?.FullName</td>
+                                <td>@h.Comment</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p>Нет истории.</p>
+            }
+        </div>
+    </div>
+
+    @if (availableTransitions.Any())
+    {
+        <h4>Доступные действия</h4>
+        <div class="mb-3">
+            @foreach (var transition in availableTransitions)
+            {
+                <button class="btn btn-primary me-2" @onclick="() => ExecuteTransition(transition)">@transition.ActionName</button>
+            }
+        </div>
+    }
+
+    <button class="btn btn-secondary" @onclick="GoBack">Назад</button>
+}
+
+@if (showEditAttributesModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Редактирование атрибутов</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditAttributesModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="editAttributesModel" OnValidSubmit="SaveAttributes">
+                        <DataAnnotationsValidator />
+                        <div class="mb-3">
+                            <label class="form-label">Атрибуты (JSON)</label>
+                            <InputTextArea @bind-Value="editAttributesModel.JsonText" class="form-control" rows="10" />
+                            <small class="text-muted">Введите JSON объект, например {"Сумма": 1000, "Номер": "А-123"}</small>
+                            <ValidationMessage For="() => editAttributesModel.JsonText" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(attributesError))
+                        {
+                            <div class="alert alert-danger">@attributesError</div>
+                        }
+                    </EditForm>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseEditAttributesModal">Отмена</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveAttributes">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+    private Document? document;
+    private List<DocumentHistory> history = new();
+    private List<WorkflowTransition> availableTransitions = new();
+    private bool isLoading = true;
+    private bool accessDenied = false;
+    private Dictionary<string, object> extraAttributes = new();
+    private bool canEditAttributes = false;
+    private bool showEditAttributesModal = false;
+    private EditAttributesModel editAttributesModel = new();
+    private string? attributesError;
+    private int? currentEmployeeId;
+
+    protected override async Task OnInitializedAsync() => await LoadDocument();
+
+    private async Task LoadDocument()
+    {
+        isLoading = true;
+        try
+        {
+            document = await DocumentService.GetDocumentAsync(id);
+            if (document == null)
+            {
+                accessDenied = true;
+                return;
+            }
+            history = await DocumentService.GetDocumentHistoryAsync(id);
+            extraAttributes = document.ExtraAttributes ?? new Dictionary<string, object>();
+            currentEmployeeId = await CurrentUserService.GetEmployeeIdAsync();
+            if (currentEmployeeId.HasValue)
+            {
+                availableTransitions = await WorkflowService.GetAvailableTransitionsAsync(document, currentEmployeeId.Value);
+                canEditAttributes = await WorkflowService.CanEditDocumentAsync(document, currentEmployeeId.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Ошибка загрузки документа: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadFile()
+    {
+        if (document == null) return;
+        var url = $"/api/documents/{document.Id}/download";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    private void EditAttributes()
+    {
+        editAttributesModel.JsonText = JsonSerializer.Serialize(extraAttributes, new JsonSerializerOptions { WriteIndented = true });
+        showEditAttributesModal = true;
+        attributesError = null;
+    }
+
+    private async Task SaveAttributes()
+    {
+        if (document == null) return;
+        try
+        {
+            var newAttributes = JsonSerializer.Deserialize<Dictionary<string, object>>(editAttributesModel.JsonText);
+            if (newAttributes == null) throw new Exception("Неверный формат JSON");
+            await DocumentService.UpdateExtraAttributesAsync(document.Id, newAttributes);
+            extraAttributes = newAttributes;
+            document.ExtraAttributes = newAttributes;
+            showEditAttributesModal = false;
+            await JS.InvokeVoidAsync("alert", "Атрибуты обновлены");
+            await LoadDocument();
+        }
+        catch (Exception ex)
+        {
+            attributesError = ex.Message;
+        }
+    }
+
+    private void CloseEditAttributesModal()
+    {
+        showEditAttributesModal = false;
+        editAttributesModel = new EditAttributesModel();
+        attributesError = null;
+    }
+
+    private async Task ExecuteTransition(WorkflowTransition transition)
+    {
+        if (document == null || !currentEmployeeId.HasValue) return;
+        var comment = await JS.InvokeAsync<string>("prompt", "Введите комментарий (необязательно)");
+        try
+        {
+            var result = await WorkflowService.ExecuteTransitionAsync(document, transition.ActionName, currentEmployeeId.Value, comment);
+            if (result)
+            {
+                await LoadDocument();
+                await JS.InvokeVoidAsync("alert", "Переход выполнен успешно");
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", "Не удалось выполнить переход");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Ошибка: {ex.Message}");
+        }
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/Documents");
+
+    public class EditAttributesModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string JsonText { get; set; } = "{}";
+    }
+}

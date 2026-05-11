@@ -27,8 +27,12 @@
                 <td>@email</td>
             </tr>
             <tr>
+                <th>Полное имя</th>
+                <td>@(fullName ?? "—")</td>
+            </tr>
+            <tr>
                 <th>Роль</th>
-                <td>@role</td>
+                <td>@roleName</td>
             </tr>
             @if (isEmployee)
             {
@@ -55,7 +59,8 @@
     private string? statusMessage;
     private string? username;
     private string? email;
-    private string? role;
+    private string? roleName;
+    private string? fullName;
     private bool isEmployee;
     private string? departmentName;
     private string? positionTitle;
@@ -69,12 +74,14 @@
         username = user.UserName;
         email = user.Email ?? "не указан";
         var roles = await UserManager.GetRolesAsync(user);
-        role = roles.FirstOrDefault() ?? "Нет роли";
-        isEmployee = role == "Employee";
+        var roleEn = roles.FirstOrDefault() ?? "Нет роли";
+        roleName = TranslateRole(roleEn);
+        isEmployee = roleEn == "Employee";
 
         if (isEmployee)
         {
             var emp = await CurrentUserService.GetCurrentEmployeeAsync();
+            fullName = emp?.FullName;
             if (emp != null)
             {
                 var positions = await CurrentUserService.GetCurrentPositionsAsync();
@@ -97,4 +104,12 @@
             }
         }
     }
+
+    private string TranslateRole(string roleEn) => roleEn switch
+    {
+        "Admin" => "Администратор",
+        "Employee" => "Сотрудник",
+        "SuperAdmin" => "Главный администратор",
+        _ => roleEn
+    };
 }

@@ -61,7 +61,58 @@ namespace DocumEntum.Services
             await _dbContext.SaveChangesAsync();
             return document;
         }
+        public async Task<List<Document>> GetAccessibleDocumentsAsync()
+        {
+            if (await _currentUserService.IsAdminAsync())
+            {
+                return await _dbContext.Documents
+                    .Include(d => d.CurrentState)
+                    .Include(d => d.DocumentType)
+                    .Include(d => d.Author)
+                    .Where(d => !d.IsDeleted)
+                    .OrderByDescending(d => d.CreatedAt)
+                    .ToListAsync();
+            }
 
+            var employee = await _currentUserService.GetCurrentEmployeeAsync();
+            if (employee == null) return new List<Document>();
+
+            var userDeptId = await _currentUserService.GetDepartmentIdAsync();
+
+            // Документы, где автор – текущий сотрудник
+            var myDocuments = _dbContext.Documents
+                .Include(d => d.CurrentState)
+                .Include(d => d.DocumentType)
+                .Include(d => d.Author)
+                .Where(d => d.AuthorId == employee.Id && !d.IsDeleted);
+
+            // Утверждённые документы, доступные отделу текущего сотрудника
+            var finalDocuments = _dbContext.Documents
+                .Include(d => d.CurrentState)
+                .Include(d => d.DocumentType)
+                .Include(d => d.Author)
+                .Where(d => d.CurrentState.IsFinal && !d.IsDeleted);
+
+            if (userDeptId.HasValue)
+                finalDocuments = finalDocuments.Where(d => d.DocumentType.AvailableDepartments.Any(dept => dept.Id == userDeptId.Value));
+            else
+                finalDocuments = finalDocuments.Where(d => false);
+
+            var documents = await myDocuments.Union(finalDocuments)
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+
+            return documents;
+        }
+
+        public async Task<List<DocumentHistory>> GetDocumentHistoryAsync(int documentId)
+        {
+            return await _dbContext.DocumentHistories
+                .Include(h => h.ActionBy)
+                .Where(h => h.DocumentId == documentId)
+                .OrderBy(h => h.ActionAt)
+                .ToListAsync();
+        }
         public async Task UpdateDocumentFileAsync(int documentId, Stream newFileStream, string originalFileName, long fileSize, string contentType)
         {
             var document = await _dbContext.Documents.FindAsync(documentId);

@@ -16,6 +16,9 @@ namespace DocumEntum.Services
 
         // Удаление документа (администратор может удалить любой)
         Task DeleteDocumentAsync(int id);
+        
+        Task<List<Document>> GetAccessibleDocumentsAsync();
+        Task<List<DocumentHistory>> GetDocumentHistoryAsync(int documentId);
 
         // Административные методы
         // для админов
