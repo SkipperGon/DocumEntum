@@ -42,7 +42,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasOne(d => d.Parent)
                 .WithMany(d => d.Children)
                 .HasForeignKey(d => d.ParentId)
-                .OnDelete(DeleteBehavior.Restrict); // запрещаем каскадное удаление
+                .OnDelete(DeleteBehavior.Restrict);
 
             // Индекс для быстрого поиска по Path (ltree)
             entity.HasIndex(d => d.Path).HasMethod("gist");
@@ -100,7 +100,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
             //сотрудник не занимает одну и ту же должность
             entity.HasIndex(ep => new { ep.EmployeeId, ep.PositionId }).IsUnique();
-            
+
         });
 
         builder.Entity<Workflow>(entity =>
@@ -172,12 +172,21 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(d => d.FileSize).IsRequired();
             entity.Property(d => d.ContentType).IsRequired().HasMaxLength(200);
 
-            // JSONB для динамических атрибутов
-            entity.OwnsOne(d => d.ExtraAttributes, attr =>
-            {
-                // Сохраняет как jsonb
-                attr.ToJson(); 
-            });
+            //компаратор
+            var extraAttributesComparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<Dictionary<string, object>>(
+                (d1, d2) => d1.Count == d2.Count && !d1.Except(d2).Any(),
+                d => d.Aggregate(0, (a, p) => HashCode.Combine(
+                a, p.Key.GetHashCode(), p.Value != null ? p.Value.GetHashCode() : 0)),
+                d => d.ToDictionary(k => k.Key, k => k.Value)
+            );
+            // JSONB для динамических атрибутов через конвертер значений
+            entity.Property(d => d.ExtraAttributes)
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
+                    v => System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(v, (System.Text.Json.JsonSerializerOptions)null)
+                 ?? new Dictionary<string, object>()
+            ).Metadata.SetValueComparer(extraAttributesComparer);
 
             entity.HasOne(d => d.Author)
                 .WithMany()

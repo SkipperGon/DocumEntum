@@ -114,9 +114,9 @@ namespace DocumEntum
                 }
                 else
                 {
-                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.ForegroundColor = ConsoleColor.Yellow;
                     Console.WriteLine("\n------------------------------------------------");
-                    Console.WriteLine("WARN] Главный администратор не найден в БД при запуске");
+                    Console.WriteLine("[WARN] Главный администратор не найден в БД при запуске");
                     Console.WriteLine("При первом входе потребуется создание по /Account/SetupSuperAdmin");
                     Console.WriteLine("------------------------------------------------\n");
                     Console.ResetColor();

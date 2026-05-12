@@ -40,7 +40,7 @@ else
             <button class="btn btn-success mb-2" @onclick="() => OpenStateModal(null)">➕ Добавить состояние</button>
             <table class="table table-bordered">
                 <thead>
-                    <tr><th>Название</th><th>Описание</th><th>Начало</th><th>Конец</th><th>Порядок</th><th>Должность</th><th>Можно редактировать</th><th>Действия</th></tr>
+                    <tr><th>Название</th><th>Описание</th><th>Начало</th><th>Конец</th><th>Браковка</th><th>Порядок</th><th>Должность</th><th>Можно редактировать</th><th>Действия</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var state in states)
@@ -50,6 +50,7 @@ else
                             <td>@state.Description</td>
                             <td>@(state.IsInitial ? "✓" : "")</td>
                             <td>@(state.IsFinal ? "✓" : "")</td>
+                            <td>@(state.IsRejected ? "✓" : "")</td>
                             <td>@state.Order</td>
                             <td>@(state.RequiredPosition?.Title ?? "—")</td>
                             <td>@(state.CanEdit ? "Да" : "Нет")</td>
@@ -118,6 +119,10 @@ else
                         <div class="mb-3 form-check">
                             <InputCheckbox @bind-Value="stateEditModel.IsFinal" class="form-check-input" />
                             <label class="form-check-label">Конечное состояние</label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="stateEditModel.IsRejected" class="form-check-input" />
+                            <label class="form-check-label">Окончательная браковка</label>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Порядок</label>
@@ -227,13 +232,13 @@ else
     private List<Position> allPositions = new();
     private List<string> allRoles = new();
 
-    // State modal
+    // State
     private bool showStateModal;
     private WorkflowState? editingState;
     private StateEditModel stateEditModel = new();
     private string? stateErrorMessage;
 
-    // Transition modal
+    // Transition
     private bool showTransitionModal;
     private WorkflowTransition? editingTransition;
     private TransitionEditModel transitionEditModel = new();
@@ -286,7 +291,6 @@ else
         return pos?.Title ?? posId.ToString();
     }
 
-    // ---------- State operations ----------
     private void OpenStateModal(WorkflowState? state)
     {
         editingState = state;
@@ -298,6 +302,7 @@ else
                 Description = state.Description,
                 IsInitial = state.IsInitial,
                 IsFinal = state.IsFinal,
+                IsRejected = state.IsRejected,
                 Order = state.Order,
                 RequiredPositionId = state.RequiredPositionId,
                 CanEdit = state.CanEdit
@@ -324,6 +329,7 @@ else
                     Description = stateEditModel.Description,
                     IsInitial = stateEditModel.IsInitial,
                     IsFinal = stateEditModel.IsFinal,
+                    IsRejected = stateEditModel.IsRejected,
                     Order = stateEditModel.Order,
                     RequiredPositionId = stateEditModel.RequiredPositionId,
                     CanEdit = stateEditModel.CanEdit
@@ -336,6 +342,7 @@ else
                 editingState.Description = stateEditModel.Description;
                 editingState.IsInitial = stateEditModel.IsInitial;
                 editingState.IsFinal = stateEditModel.IsFinal;
+                editingState.IsRejected = stateEditModel.IsRejected;
                 editingState.Order = stateEditModel.Order;
                 editingState.RequiredPositionId = stateEditModel.RequiredPositionId;
                 editingState.CanEdit = stateEditModel.CanEdit;
@@ -442,7 +449,6 @@ else
         transitionErrorMessage = null;
     }
 
-    // ---------- ViewModels ----------
     public class StateEditModel
     {
         [Required(ErrorMessage = "Название обязательно")]
@@ -450,6 +456,7 @@ else
         public string? Description { get; set; }
         public bool IsInitial { get; set; }
         public bool IsFinal { get; set; }
+        public bool IsRejected { get; set; }
         public int Order { get; set; }
         public int? RequiredPositionId { get; set; }
         public bool CanEdit { get; set; }

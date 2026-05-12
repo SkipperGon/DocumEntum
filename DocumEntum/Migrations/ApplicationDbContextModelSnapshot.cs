@@ -163,6 +163,10 @@ namespace DocumEntum.Migrations
                     b.Property<int>("DocumentTypeId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ExtraAttributes")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("FileExtension")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -661,21 +665,6 @@ namespace DocumEntum.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.OwnsOne("System.Collections.Generic.Dictionary<string, object>", "ExtraAttributes", b1 =>
-                        {
-                            b1.Property<int>("DocumentId")
-                                .HasColumnType("integer");
-
-                            b1.HasKey("DocumentId");
-
-                            b1.ToTable("Documents");
-
-                            b1.ToJson("ExtraAttributes");
-
-                            b1.WithOwner()
-                                .HasForeignKey("DocumentId");
-                        });
-
                     b.Navigation("Author");
 
                     b.Navigation("CurrentState");
@@ -683,9 +672,6 @@ namespace DocumEntum.Migrations
                     b.Navigation("Department");
 
                     b.Navigation("DocumentType");
-
-                    b.Navigation("ExtraAttributes")
-                        .IsRequired();
 
                     b.Navigation("Workflow");
                 });

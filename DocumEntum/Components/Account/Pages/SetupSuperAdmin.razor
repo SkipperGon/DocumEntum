@@ -16,7 +16,7 @@
 }
 else if (SuperAdminStatus.HasSuperAdmin)
 {
-    // Суперадмин уже существует в системе (создан в этой сессии или был при запуске)
+    // гл.админ уже существует в системе (создан в этой сессии или был при запуске)
     <p>Перенаправление...</p>
 }
 else
@@ -70,7 +70,7 @@ else
     protected override void OnInitialized()
     {
         checking = false;
-        // Если суперадмин уже есть (флаг true), немедленно уходим
+        // Если гл.админ уже есть (флаг true)
         if (SuperAdminStatus.HasSuperAdmin)
         {
             NavigationManager.NavigateTo("/", true);
@@ -81,8 +81,8 @@ else
     {
         errorMessage = null;
 
-        // Ещё раз проверяем флаг – на случай, если страница была открыта до создания,
-        // а суперадмин уже создан (например, в другой вкладке). Базу не трогаем.
+        // проверяем флаг – на случай если страница открыта
+        // гл.админ уже ксть
         if (SuperAdminStatus.HasSuperAdmin)
         {
             NavigationManager.NavigateTo("/");

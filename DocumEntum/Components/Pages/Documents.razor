@@ -100,7 +100,6 @@ else
     {
         if (!isAdmin) return;
 
-        // confirm через JS разрешён, т.к. вызывается из обработчика клика (после интерактивности)
         var confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить документ '{doc.Title}'?");
         if (!confirmed) return;
 

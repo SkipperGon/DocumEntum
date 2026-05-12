@@ -211,7 +211,6 @@ else
         }
     }
 
-    // ---------- Должности ----------
     private void OpenPositionModal(Position? pos)
     {
         editingPosition = pos;
@@ -279,7 +278,6 @@ else
         positionErrorMessage = null;
     }
 
-    // ---------- Назначение сотрудников ----------
     private void OpenAssignModal(Position pos)
     {
         selectedPosition = pos;
@@ -327,7 +325,6 @@ else
         assignErrorMessage = null;
     }
 
-    // ---------- Вспомогательные модели ----------
     public class PositionEditModel
     {
         [Required(ErrorMessage = "Название обязательно")]
