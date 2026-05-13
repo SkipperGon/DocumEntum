@@ -18,51 +18,7 @@ namespace DocumEntum.Services
             _currentUserService = currentUserService;
             _workflowService = workflowService;
         }
-        public async Task<Document> CreateDocumentAsync(string title, int workflowId, int authorId, int? departmentId,
-            Dictionary<string, object> extraAttributes, Stream fileStream, string originalFileName, long fileSize, string contentType)
-        {
-            // Только сотрудник (Employee) может создавать документы
-            var currentEmployee = await _currentUserService.GetCurrentEmployeeAsync();
-            if (currentEmployee == null || currentEmployee.Id != authorId)
-                throw new UnauthorizedAccessException("Только сотрудник может создавать документы.");
-            // workflow и начальное состояние
-            var workflow = await _dbContext.Workflows
-                .Include(w => w.DocumentType)
-                .FirstOrDefaultAsync(w => w.Id == workflowId);
-            if (workflow == null) throw new Exception("Workflow not found");
-
-            if (!await _workflowService.CanEmployeeStartWorkflowAsync(authorId, workflowId))
-                throw new UnauthorizedAccessException("Вы не можете начать этот процесс: проверьте должность на начальном этапе или активность процесса.");
-
-            var initialState = await _dbContext.WorkflowStates
-                .FirstOrDefaultAsync(s => s.WorkflowId == workflowId && s.IsInitial);
-            if (initialState == null) throw new Exception("No initial state");
-            // Сохраняем в файл
-            var storedRelativePath = await _fileStorage.SaveFileAsync(fileStream, originalFileName, DocumentStorageFolders.Workflows);
-
-            // Заполняем метаданные
-            var document = new Document
-            {
-                Title = title,
-                AuthorId = authorId,
-                WorkflowId = workflowId,
-                CurrentStateId = initialState.Id,
-                DepartmentId = departmentId,
-                DocumentTypeId = workflow.DocumentTypeId,
-                ExtraAttributes = extraAttributes,
-                FileName = originalFileName,
-                FileExtension = Path.GetExtension(originalFileName).TrimStart('.'),
-                StoredFileName = storedRelativePath,
-                FileSize = fileSize,
-                ContentType = contentType,
-                ApprovedVersion = 0,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _dbContext.Documents.Add(document);
-            await _dbContext.SaveChangesAsync();
-            return document;
-        }
+        
         public async Task<List<Document>> GetAccessibleDocumentsAsync()
         {
             if (await _currentUserService.IsAdminAsync())
@@ -119,7 +75,90 @@ namespace DocumEntum.Services
 
             return documents;
         }
+        public async Task<Document> CreateDocumentAsync(string title, int workflowId, int authorId, int? departmentId,
+            Dictionary<string, object> extraAttributes, Stream? fileStream, string? originalFileName, long fileSize, string? contentType)
+        {
+            var currentEmployee = await _currentUserService.GetCurrentEmployeeAsync();
+            if (currentEmployee == null || currentEmployee.Id != authorId)
+                throw new UnauthorizedAccessException("Только сотрудник может создавать документы.");
 
+            var workflow = await _dbContext.Workflows
+                .Include(w => w.DocumentType)
+                .FirstOrDefaultAsync(w => w.Id == workflowId);
+            if (workflow == null) throw new Exception("Workflow not found");
+
+            if (!await _workflowService.CanEmployeeStartWorkflowAsync(authorId, workflowId))
+                throw new UnauthorizedAccessException("Вы не можете начать этот процесс: проверьте должность на начальном этапе или активность процесса.");
+
+            var initialState = await _dbContext.WorkflowStates
+                .FirstOrDefaultAsync(s => s.WorkflowId == workflowId && s.IsInitial);
+            if (initialState == null) throw new Exception("No initial state");
+
+            // Сохраняем в файл, ТОЛЬКО ЕСЛИ он был передан
+            string storedRelativePath = string.Empty;
+            string fileExt = string.Empty;
+            if (fileStream != null && !string.IsNullOrEmpty(originalFileName))
+            {
+                storedRelativePath = await _fileStorage.SaveFileAsync(fileStream, originalFileName, DocumentStorageFolders.Workflows);
+                fileExt = Path.GetExtension(originalFileName).TrimStart('.');
+            }
+
+            var document = new Document
+            {
+                Title = title,
+                AuthorId = authorId,
+                WorkflowId = workflowId,
+                CurrentStateId = initialState.Id,
+                DepartmentId = departmentId,
+                DocumentTypeId = workflow.DocumentTypeId,
+                ExtraAttributes = extraAttributes,
+                FileName = originalFileName ?? string.Empty,
+                FileExtension = fileExt,
+                StoredFileName = storedRelativePath,
+                FileSize = fileSize,
+                ContentType = contentType ?? string.Empty,
+                ApprovedVersion = 0,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _dbContext.Documents.Add(document);
+            await _dbContext.SaveChangesAsync();
+            return document;
+        }
+
+        public async Task UpdateDocumentFileAsync(int documentId, Stream newFileStream, string originalFileName, long fileSize, string contentType)
+        {
+            var document = await _dbContext.Documents.FindAsync(documentId);
+            if (document == null)
+                throw new ArgumentException("Документ не найден");
+
+            var employee = await _currentUserService.GetCurrentEmployeeAsync();
+            if (employee == null)
+                throw new UnauthorizedAccessException("Только сотрудник может редактировать документ");
+
+            var canEdit = await _workflowService.CanEditDocumentAsync(document, employee.Id);
+            if (!canEdit)
+                throw new UnauthorizedAccessException("На данном этапе редактирование документа запрещено");
+
+            // Удаляем старый файл, если он вообще существовал (ведь документ мог быть создан без файла)
+            if (!string.IsNullOrEmpty(document.StoredFileName))
+            {
+                await _fileStorage.DeleteFileAsync(document.StoredFileName);
+            }
+
+            // Сохраняем новый файл
+            var newRelativePath = await _fileStorage.SaveFileAsync(newFileStream, originalFileName, DocumentStorageFolders.Workflows);
+
+            // Обновляем метаданные
+            document.StoredFileName = newRelativePath;
+            document.FileName = originalFileName;
+            document.FileExtension = Path.GetExtension(originalFileName).TrimStart('.');
+            document.FileSize = fileSize;
+            document.ContentType = contentType;
+            document.UpdatedAt = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+        }
         public async Task<List<Document>> GetApprovedDocumentsAsync()
         {
             if (await _currentUserService.IsAdminAsync())
@@ -277,37 +316,7 @@ namespace DocumEntum.Services
                 .OrderBy(h => h.ActionAt)
                 .ToListAsync();
         }
-        public async Task UpdateDocumentFileAsync(int documentId, Stream newFileStream, string originalFileName, long fileSize, string contentType)
-        {
-            var document = await _dbContext.Documents.FindAsync(documentId);
-            if (document == null)
-                throw new ArgumentException("Документ не найден");
-
-            var employee = await _currentUserService.GetCurrentEmployeeAsync();
-            if (employee == null)
-                throw new UnauthorizedAccessException("Только сотрудник может редактировать документ");
-
-            var canEdit = await _workflowService.CanEditDocumentAsync(document, employee.Id);
-            if (!canEdit)
-                throw new UnauthorizedAccessException("На данном этапе редактирование документа запрещено");
-
-            // Удаляем старый файл
-            await _fileStorage.DeleteFileAsync(document.StoredFileName);
-
-            // Сохраняем новый файл
-            var newRelativePath = await _fileStorage.SaveFileAsync(newFileStream, originalFileName, DocumentStorageFolders.Workflows);
-
-            // Обновляем метаданные
-            document.StoredFileName = newRelativePath;
-            document.FileName = originalFileName;
-            document.FileExtension = Path.GetExtension(originalFileName).TrimStart('.');
-            document.FileSize = fileSize;
-            document.ContentType = contentType;
-            document.UpdatedAt = DateTime.UtcNow;
-
-            await _dbContext.SaveChangesAsync();
-        }
-
+        
         public async Task<Document?> GetDocumentAsync(int id)
         {
             var doc = await _dbContext.Documents

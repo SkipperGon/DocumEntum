@@ -5,6 +5,9 @@
 @using DocumEntum.Services
 @using Microsoft.AspNetCore.Authorization
 @inject IDocumentService DocumentService
+@inject IWorkflowService WorkflowService
+@inject ICurrentUserService CurrentUserService
+@inject NavigationManager NavigationManager
 
 <PageTitle>Утверждённые документы</PageTitle>
 
@@ -35,40 +38,89 @@ else
                 <tr>
                     <th>Название</th>
                     <th>Тип</th>
-                    <th>Автор</th>
+                    <th>По запросу</th>
                     <th>Версия</th>
                     <th>Создан</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var d in documents)
+                @foreach (var doc in documents)
                 {
                     <tr>
-                        <td>@d.Title</td>
-                        <td>@d.DocumentType?.Name</td>
-                        <td>@d.Author?.FullName</td>
-                        <td>@d.ApprovedVersion</td>
-                        <td>@d.CreatedAt.ToLocalTime().ToString("g")</td>
-                        <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="@($"/api/documents/{d.Id}/download")" target="_blank">Скачать</a>
-                        </td>
+                        <td>@doc.Title</td>
+                        <td>@doc.DocumentType?.Name</td>
+                        <td>@doc.Author?.FullName</td>
+                        <td>@doc.ApprovedVersion</td>
+                            <td class="text-end">
+                                @if (!string.IsNullOrEmpty(doc.StoredFileName))
+                                {
+                                    <a class="btn btn-sm btn-outline-primary" href="@($"/api/documents/{doc.Id}/download")" target="_blank">Скачать</a>
+                                }
+                                @if (currentEmployee != null)
+                                {
+                                    <button class="btn btn-sm btn-warning ms-1" @onclick="() => OpenUpdateModal(doc)">Обновить</button>
+                                }
+                            </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
+    @* мадал.окно *@
+    @if (showUpdateModal && docToUpdate != null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Обновление документа: @docToUpdate.Title</h5>
+                        <button type="button" class="btn-close" @onclick="CloseUpdateModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (updateModalError != null)
+                        {
+                            <div class="alert alert-danger">@updateModalError</div>
+                        }
+                        <p>Выберите процесс для изменения документа. Будет создан черновик новой версии.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Бизнес-процесс</label>
+                            <select class="form-select" @bind="selectedWorkflowId">
+                                <option value="0">— выберите процесс —</option>
+                                @foreach (var w in availableWorkflows)
+                                {
+                                    <option value="@w.Id">@w.Name</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseUpdateModal">Отмена</button>
+                        <button type="button" class="btn btn-primary" disabled="@(selectedWorkflowId == 0 || updateSubmitting)" @onclick="SubmitUpdate">Создать черновик</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
     private bool isLoading = true;
     private string? loadError;
     private List<Document> documents = new();
+    private Employee? currentEmployee;
+    private bool showUpdateModal;
+    private Document? docToUpdate;
+    private List<Workflow> availableWorkflows = new();
+    private int selectedWorkflowId;
+    private string? updateModalError;
+    private bool updateSubmitting;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            currentEmployee = await CurrentUserService.GetCurrentEmployeeAsync();
             documents = await DocumentService.GetApprovedDocumentsAsync();
         }
         catch (Exception ex)
@@ -78,6 +130,57 @@ else
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private async Task OpenUpdateModal(Document doc)
+    {
+        if (currentEmployee == null) return;
+        docToUpdate = doc;
+        selectedWorkflowId = 0;
+        updateModalError = null;
+
+        try
+        {
+            // Получаем доступные для старта процессы и фильтруем по типу выбранного документа
+            var allStartable = await WorkflowService.GetStartableWorkflowsAsync();
+            availableWorkflows = allStartable.Where(w => w.DocumentTypeId == doc.DocumentTypeId).ToList();
+            showUpdateModal = true;
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Ошибка загрузки процессов: {ex.Message}";
+        }
+    }
+
+    private void CloseUpdateModal()
+    {
+        showUpdateModal = false;
+        docToUpdate = null;
+    }
+
+    private async Task SubmitUpdate()
+    {
+        if (docToUpdate == null || currentEmployee == null || selectedWorkflowId == 0) return;
+
+        updateSubmitting = true;
+        updateModalError = null;
+        try
+        {
+            var deptId = await CurrentUserService.GetDepartmentIdAsync();
+            await DocumentService.StartEditApprovedDocumentAsync(docToUpdate.Id, selectedWorkflowId, currentEmployee.Id, deptId);
+
+            showUpdateModal = false;
+            // Перенаправляем пользователя в раздел процессов для продолжения работы с черновиком
+            NavigationManager.NavigateTo("/Workflows");
+        }
+        catch (Exception ex)
+        {
+            updateModalError = ex.Message;
+        }
+        finally
+        {
+            updateSubmitting = false;
         }
     }
 }

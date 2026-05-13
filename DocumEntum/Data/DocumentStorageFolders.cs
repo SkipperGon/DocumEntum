@@ -13,7 +13,7 @@ namespace DocumEntum.Data
             (relativePath.StartsWith($"{Workflows}/", StringComparison.Ordinal)
              || relativePath.Equals(Workflows, StringComparison.Ordinal));
 
-        /// <summary>Старый каталог черновиков до переименования в Workflows.</summary>
+        /// <summary>Старый каталог черновиков до переименования в Workflows. TODO</summary>
         public static bool IsLegacyPendingPath(string? relativePath) =>
             !string.IsNullOrEmpty(relativePath) &&
             relativePath.StartsWith("pending/", StringComparison.Ordinal);

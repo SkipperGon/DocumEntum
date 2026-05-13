@@ -50,29 +50,33 @@ else
                     <th>Тип</th>
                     <th>Процесс</th>
                     <th>Статус</th>
-                    <th>Автор</th>
+                    <th>Запроситель</th>
                     <th>Создан</th>
-                    <th></th>
+                    <th>Действия</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var d in documents)
+                @foreach (var doc in documents)
                 {
                     <tr>
                         <td>
-                            @d.Title
-                            @if (d.ReplacesDocumentId.HasValue)
+                            @doc.Title
+                            @if (doc.ReplacesDocumentId.HasValue)
                             {
-                                <span class="badge bg-secondary ms-1">изменение №@d.ReplacesDocumentId</span>
+                                <span class="badge bg-secondary ms-1">изменение №@doc.ReplacesDocumentId</span>
                             }
                         </td>
-                        <td>@d.DocumentType?.Name</td>
-                        <td>@d.Workflow?.Name</td>
-                        <td>@d.CurrentState?.Name</td>
-                        <td>@d.Author?.FullName</td>
-                        <td>@d.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td>@doc.DocumentType?.Name</td>
+                        <td>@doc.Workflow?.Name</td>
+                        <td>@doc.CurrentState?.Name</td>
+                        <td>@doc.Author?.FullName</td>
+                        <td>@doc.CreatedAt.ToLocalTime().ToString("g")</td>
                         <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="@($"/api/documents/{d.Id}/download")" target="_blank">Скачать</a>
+                            @if (!string.IsNullOrEmpty(doc.StoredFileName))
+                            {
+                                <a class="btn btn-sm btn-outline-primary me-1" href="@($"/api/documents/{doc.Id}/download")" target="_blank">Скачать</a>
+                            }
+                            <button class="btn btn-sm btn-primary" @onclick="() => OpenManageModal(doc)">Открыть</button>
                         </td>
                     </tr>
                 }
@@ -81,6 +85,7 @@ else
     </div>
 }
 
+@* Модальное окно старта нового процесса *@
 @if (showStartModal)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -101,7 +106,7 @@ else
                             }
                             @if (startableWorkflows.Count == 0)
                             {
-                                <p class="text-muted">Нет активных процессов, которые вы можете начать. На начальном этапе должна быть указана ваша должность (или этап без привязки к должности).</p>
+                                <p class="text-muted">Нет активных процессов, которые вы можете начать.</p>
                             }
                             else
                             {
@@ -116,19 +121,39 @@ else
                                     </InputSelect>
                                     <ValidationMessage For="() => startModel.WorkflowId" />
                                 </div>
+
+                                
+                                    var selectedWf = startableWorkflows.FirstOrDefault(w => w.Id == startModel.WorkflowId);
+                                    var initialSt = selectedWf?.States.FirstOrDefault(s => s.IsInitial);
+                                    bool canEditOnStart = initialSt?.CanEdit ?? false;
+                                
+
                                 <div class="mb-3">
                                     <label class="form-label">Название документа</label>
                                     <InputText @bind-Value="startModel.Title" class="form-control" maxlength="500" />
                                     <ValidationMessage For="() => startModel.Title" />
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Файл</label>
-                                    <InputFile class="form-control" OnChange="OnStartFileSelected" accept="*/*" />
-                                    @if (startFileName != null)
+
+                                @if (startModel.WorkflowId > 0)
+                                {
+                                    @if (canEditOnStart)
                                     {
-                                        <small class="text-muted">Выбран: @startFileName</small>
+                                        <div class="mb-3">
+                                            <label class="form-label">Файл</label>
+                                            <InputFile class="form-control" OnChange="OnStartFileSelected" accept="*/*" />
+                                            @if (startFileName != null)
+                                            {
+                                                <small class="text-muted">Выбран: @startFileName</small>
+                                            }
+                                        </div>
                                     }
-                                </div>
+                                    else
+                                    {
+                                        <div class="alert alert-info">
+                                            На начальном этапе данного процесса прикрепление файла не требуется.
+                                        </div>
+                                    }
+                                }
                             }
                         </div>
                         <div class="modal-footer">
@@ -145,7 +170,7 @@ else
                 else
                 {
                     <div class="modal-body">
-                        <p class="mb-2">Документ создан. Выберите действие для перехода с начального этапа (например, в «Составление»).</p>
+                        <p class="mb-2">Выберите действие для перехода с начального этапа.</p>
                         @if (transitionApplyError != null)
                         {
                             <div class="alert alert-danger">@transitionApplyError</div>
@@ -159,22 +184,100 @@ else
                             <div class="d-flex flex-wrap gap-2">
                                 @foreach (var t in pendingFirstTransitions)
                                 {
-                                    <button type="button" class="btn btn-primary"
-                                            disabled="@transitionApplying"
-                                            @onclick="async () => await ApplyFirstTransition(t.ActionName)">
-                                        @t.ActionName@if (t.ToState != null)
-                                        {
-                                            <text> → @t.ToState.Name</text>
-                                        }
+                                    <button type="button" class="btn btn-primary" disabled="@transitionApplying" @onclick="async () => await ApplyFirstTransition(t.ActionName)">
+                                        @t.ActionName
                                     </button>
                                 }
                             </div>
                         }
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="CancelStartWizard" disabled="@transitionApplying">Отмена (удалить черновик)</button>
+                        <button type="button" class="btn btn-secondary" @onclick="CancelStartWizard" disabled="@transitionApplying">Отмена</button>
                     </div>
                 }
+            </div>
+        </div>
+    </div>
+}
+
+@* Модальное окно управления существующим документом *@
+@if (showManageModal && manageDoc != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Управление: @manageDoc.Title</h5>
+                    <button type="button" class="btn-close" @onclick="CloseManageModal"></button>
+                </div>
+                <div class="modal-body">
+
+                    @if (manageModalError != null)
+                    {
+                        <div class="alert alert-danger">@manageModalError</div>
+                    }
+                    @if (!string.IsNullOrEmpty(lastComment))
+                    {
+                        <div class="alert alert-info py-2">
+                            <strong>Оставленый комментарий:</strong> @lastComment
+                        </div>
+                    }
+                    @if (manageModalSuccess != null)
+                    {
+                        <div class="alert alert-success">@manageModalSuccess</div>
+                    }
+
+                    <p><strong>Этап:</strong> @manageDoc.CurrentState?.Name</p>
+                    <p><strong>Текущий файл:</strong>
+                        @if (!string.IsNullOrEmpty(manageDoc.StoredFileName))
+                        {
+                            <a href="@($"/api/documents/{manageDoc.Id}/download")" target="_blank">@manageDoc.FileName</a>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Не прикреплен</span>
+                        }
+                    </p>
+
+                    @* Панель загрузки нового файла (если доступно редактирование) *@
+                    @if (manageCanEdit)
+                    {
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h6 class="card-title">Обновить файл документа</h6>
+                                <div class="input-group">
+                                    <InputFile class="form-control" OnChange="OnManageFileSelected" accept="*/*" />
+                                    <button class="btn btn-outline-secondary" @onclick="UpdateDocumentFile" disabled="@(manageFile == null || manageSubmitting)">
+                                        Загрузить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Комментарий к действию (необязательно)</label>
+                        <textarea class="form-control" @bind="transitionComment" rows="2" placeholder="Ваш комментарий..."></textarea>
+                    </div>
+                    <h6 class="mt-2">Доступные переходы:</h6>
+                    @if (manageTransitions.Count == 0)
+                    {
+                        <p class="text-muted">Ожидается действие от другого сотрудника.</p>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var t in manageTransitions)
+                            {
+                                <button class="btn btn-success" disabled="@manageSubmitting" @onclick="() => ExecuteManageTransition(t.ActionName)">
+                                    @t.ActionName
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseManageModal" disabled="@manageSubmitting">Закрыть</button>
+                </div>
             </div>
         </div>
     </div>
@@ -186,8 +289,8 @@ else
     private bool isLoading = true;
     private string? loadError;
     private List<Document> documents = new();
-
     private Employee? currentEmployee;
+    
     private bool showStartModal;
     private int startModalStep = 1;
     private List<Workflow> startableWorkflows = new();
@@ -201,6 +304,18 @@ else
     private List<WorkflowTransition> pendingFirstTransitions = new();
     private bool transitionApplying;
     private string? transitionApplyError;
+
+    // Управление
+    private bool showManageModal;
+    private Document? manageDoc;
+    private List<WorkflowTransition> manageTransitions = new();
+    private bool manageCanEdit;
+    private IBrowserFile? manageFile;
+    private string? manageModalError;
+    private string? manageModalSuccess;
+    private bool manageSubmitting;
+    private string? transitionComment;
+    private string? lastComment;
 
     protected override async Task OnInitializedAsync()
     {
@@ -226,10 +341,11 @@ else
         }
     }
 
+    // ========== Создание процесса ==========
+    
     private async Task OpenStartModal()
     {
         if (currentEmployee == null) return;
-
         ResetStartModalState();
         startableWorkflows = await WorkflowService.GetStartableWorkflowsAsync();
         showStartModal = true;
@@ -253,18 +369,11 @@ else
     {
         if (startModalStep == 2 && createdDocumentId.HasValue)
         {
-            try
-            {
-                await DocumentService.DeleteDocumentAsync(createdDocumentId.Value);
-            }
-            catch
-            {
-                // игнорируем — модалку всё равно закрываем
-            }
+            try { await DocumentService.DeleteDocumentAsync(createdDocumentId.Value); } catch { }
         }
-
         showStartModal = false;
         ResetStartModalState();
+        await ReloadDocumentsAsync();
     }
 
     private void OnStartFileSelected(InputFileChangeEventArgs e)
@@ -292,46 +401,47 @@ else
             return;
         }
 
-        if (startFile == null)
+        var workflow = startableWorkflows.FirstOrDefault(w => w.Id == startModel.WorkflowId);
+        var initialState = workflow?.States.FirstOrDefault(s => s.IsInitial);
+        bool canEditOnStart = initialState?.CanEdit ?? false;
+
+        if (canEditOnStart && startFile == null)
         {
-            startModalError = "Прикрепите файл.";
+            startModalError = "Прикрепите файл (на данном этапе он обязателен).";
             return;
         }
 
         var previewTransitions = await WorkflowService.GetAvailableTransitionsFromInitialStateAsync(startModel.WorkflowId, currentEmployee.Id);
         if (previewTransitions.Count == 0)
         {
-            startModalError = "С начального этапа нет доступных вам переходов. Проверьте настройки переходов (AllowedPositionIds) и должность на этапе «Запрос».";
+            startModalError = "С начального этапа нет доступных вам переходов. Проверьте права.";
             return;
         }
 
         startSubmitting = true;
         try
         {
-            await using var stream = startFile.OpenReadStream(MaxUploadBytes);
             var deptId = await CurrentUserService.GetDepartmentIdAsync();
-            var doc = await DocumentService.CreateDocumentAsync(
-                title,
-                startModel.WorkflowId,
-                currentEmployee.Id,
-                deptId,
-                new Dictionary<string, object>(),
-                stream,
-                startFile.Name,
-                startFile.Size,
-                startFile.ContentType);
+            Document doc;
+
+            if (canEditOnStart && startFile != null)
+            {
+                await using var stream = startFile.OpenReadStream(MaxUploadBytes);
+                doc = await DocumentService.CreateDocumentAsync(
+                    title, startModel.WorkflowId, currentEmployee.Id, deptId,
+                    new Dictionary<string, object>(), stream, startFile.Name, startFile.Size, startFile.ContentType);
+            }
+            else
+            {
+                doc = await DocumentService.CreateDocumentAsync(
+                    title, startModel.WorkflowId, currentEmployee.Id, deptId,
+                    new Dictionary<string, object>(), null, null, 0, null);
+            }
 
             createdDocumentId = doc.Id;
             pendingFirstTransitions = await WorkflowService.GetAvailableTransitionsAsync(doc, currentEmployee.Id);
-            if (pendingFirstTransitions.Count == 0)
-            {
-                startModalError = "Документ создан, но переходы недоступны. Удалите черновик через «Отмена» или обратитесь к администратору.";
-                return;
-            }
 
             startModalStep = 2;
-            startFile = null;
-            startFileName = null;
         }
         catch (Exception ex)
         {
@@ -352,18 +462,10 @@ else
         try
         {
             var doc = await DocumentService.GetDocumentAsync(createdDocumentId.Value);
-            if (doc == null)
-            {
-                transitionApplyError = "Документ не найден или нет доступа.";
-                return;
-            }
+            if (doc == null) { transitionApplyError = "Документ не найден."; return; }
 
             var ok = await WorkflowService.ExecuteTransitionAsync(doc, actionName, currentEmployee.Id);
-            if (!ok)
-            {
-                transitionApplyError = "Переход не выполнен. Проверьте права на действие.";
-                return;
-            }
+            if (!ok) { transitionApplyError = "Не удалось выполнить переход."; return; }
 
             showStartModal = false;
             ResetStartModalState();
@@ -376,6 +478,94 @@ else
         finally
         {
             transitionApplying = false;
+        }
+    }
+
+
+    private async Task OpenManageModal(Document doc)
+    {
+        if (currentEmployee == null) return;
+        manageDoc = doc;
+        manageTransitions = await WorkflowService.GetAvailableTransitionsAsync(doc, currentEmployee.Id);
+        manageCanEdit = await WorkflowService.CanEditDocumentAsync(doc, currentEmployee.Id);
+
+        // Запрашиваем последний комментарий из истории документа
+        lastComment = await DocumentService.GetLastCommentForDocumentAsync(doc.Id);
+
+        manageFile = null;
+        manageModalError = null;
+        manageModalSuccess = null;
+        transitionComment = null;
+        showManageModal = true;
+    }
+
+    private void CloseManageModal()
+    {
+        showManageModal = false;
+        manageDoc = null;
+    }
+
+    private void OnManageFileSelected(InputFileChangeEventArgs e)
+    {
+        manageFile = e.FileCount > 0 ? e.File : null;
+        manageModalError = null;
+        manageModalSuccess = null;
+    }
+
+    private async Task UpdateDocumentFile()
+    {
+        if (manageDoc == null || manageFile == null) return;
+        manageSubmitting = true;
+        manageModalError = null;
+        manageModalSuccess = null;
+        try
+        {
+            await using var stream = manageFile.OpenReadStream(MaxUploadBytes);
+            await DocumentService.UpdateDocumentFileAsync(manageDoc.Id, stream, manageFile.Name, manageFile.Size, manageFile.ContentType);
+            manageModalSuccess = "Файл успешно обновлен.";
+            manageFile = null;
+            
+            // Обновляем состояние после загрузки
+            await ReloadDocumentsAsync();
+            manageDoc = documents.FirstOrDefault(d => d.Id == manageDoc.Id) ?? manageDoc;
+        }
+        catch (Exception ex)
+        {
+            manageModalError = ex.Message;
+        }
+        finally
+        {
+            manageSubmitting = false;
+        }
+    }
+
+    private async Task ExecuteManageTransition(string actionName)
+    {
+        if (manageDoc == null || currentEmployee == null) return;
+        manageSubmitting = true;
+        manageModalError = null;
+        try
+        {
+            var doc = await DocumentService.GetDocumentAsync(manageDoc.Id);
+            if (doc == null) { manageModalError = "Документ не найден."; return; }
+
+            var ok = await WorkflowService.ExecuteTransitionAsync(doc, actionName, currentEmployee.Id, transitionComment);
+            if (!ok)
+            {
+                manageModalError = "Не удалось выполнить переход.";
+                return;
+            }
+
+            CloseManageModal();
+            await ReloadDocumentsAsync();
+        }
+        catch (Exception ex)
+        {
+            manageModalError = ex.Message;
+        }
+        finally
+        {
+            manageSubmitting = false;
         }
     }
 
