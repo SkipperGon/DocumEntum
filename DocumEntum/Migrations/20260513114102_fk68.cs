@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     /// <inheritdoc />
-    public partial class FixExtraAttributesMapping1 : Migration
+    public partial class fk68 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -354,7 +354,7 @@ namespace DocumEntum.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Title = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                     FileName = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
-                    StoredFileName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    StoredFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
                     FileExtension = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     FileSize = table.Column<long>(type: "bigint", nullable: false),
                     ContentType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
@@ -363,6 +363,8 @@ namespace DocumEntum.Migrations
                     WorkflowId = table.Column<int>(type: "integer", nullable: false),
                     DepartmentId = table.Column<int>(type: "integer", nullable: true),
                     DocumentTypeId = table.Column<int>(type: "integer", nullable: false),
+                    ReplacesDocumentId = table.Column<int>(type: "integer", nullable: true),
+                    ApprovedVersion = table.Column<int>(type: "integer", nullable: false),
                     IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     ExtraAttributes = table.Column<string>(type: "jsonb", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -381,6 +383,12 @@ namespace DocumEntum.Migrations
                         name: "FK_Documents_DocumentTypes_DocumentTypeId",
                         column: x => x.DocumentTypeId,
                         principalTable: "DocumentTypes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Documents_Documents_ReplacesDocumentId",
+                        column: x => x.ReplacesDocumentId,
+                        principalTable: "Documents",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -467,6 +475,34 @@ namespace DocumEntum.Migrations
                         principalTable: "Employees",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "DocumentVersions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    DocumentId = table.Column<int>(type: "integer", nullable: false),
+                    VersionNumber = table.Column<int>(type: "integer", nullable: false),
+                    Title = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    FileName = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    StoredFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
+                    FileExtension = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    FileSize = table.Column<long>(type: "bigint", nullable: false),
+                    ContentType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    ExtraAttributes = table.Column<string>(type: "jsonb", nullable: false),
+                    ArchivedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DocumentVersions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_DocumentVersions_Documents_DocumentId",
+                        column: x => x.DocumentId,
+                        principalTable: "Documents",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateIndex(
@@ -558,6 +594,11 @@ namespace DocumEntum.Migrations
                 column: "DocumentTypeId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Documents_ReplacesDocumentId",
+                table: "Documents",
+                column: "ReplacesDocumentId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Documents_WorkflowId",
                 table: "Documents",
                 column: "WorkflowId");
@@ -566,6 +607,11 @@ namespace DocumEntum.Migrations
                 name: "IX_DocumentTypeDepartments_DocumentTypeId",
                 table: "DocumentTypeDepartments",
                 column: "DocumentTypeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DocumentVersions_DocumentId_VersionNumber",
+                table: "DocumentVersions",
+                columns: new[] { "DocumentId", "VersionNumber" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmployeePositions_EmployeeId_PositionId",
@@ -643,6 +689,9 @@ namespace DocumEntum.Migrations
 
             migrationBuilder.DropTable(
                 name: "DocumentTypeDepartments");
+
+            migrationBuilder.DropTable(
+                name: "DocumentVersions");
 
             migrationBuilder.DropTable(
                 name: "EmployeePositions");

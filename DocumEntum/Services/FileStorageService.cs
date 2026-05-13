@@ -1,4 +1,4 @@
-﻿namespace DocumEntum.Services
+namespace DocumEntum.Services
 {
     public class FileStorageService : IFileStorageService
     {
@@ -78,6 +78,22 @@
             EnsureSubFolder(targetSubFolder);
 
             File.Move(sourceFull, targetFull);
+            await Task.CompletedTask;
+            return targetRelative.Replace(Path.DirectorySeparatorChar, '/');
+        }
+
+        public async Task<string> CopyFileAsync(string sourceRelativePath, string targetSubFolder)
+        {
+            var sourceFull = GetFullPath(sourceRelativePath);
+            if (!File.Exists(sourceFull))
+                throw new FileNotFoundException($"File not found: {sourceRelativePath}");
+
+            var newGuid = Guid.NewGuid().ToString();
+            var targetRelative = string.IsNullOrEmpty(targetSubFolder) ? newGuid : Path.Combine(targetSubFolder, newGuid);
+            var targetFull = GetFullPath(targetRelative);
+            EnsureSubFolder(targetSubFolder);
+
+            File.Copy(sourceFull, targetFull, overwrite: false);
             await Task.CompletedTask;
             return targetRelative.Replace(Path.DirectorySeparatorChar, '/');
         }

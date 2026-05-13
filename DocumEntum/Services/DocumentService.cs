@@ -1,7 +1,5 @@
-﻿using DocumEntum.Components.Pages.Admin;
 using DocumEntum.Data;
 using Microsoft.EntityFrameworkCore;
-using System.Net.Mime;
 
 namespace DocumEntum.Services
 {
@@ -33,11 +31,14 @@ namespace DocumEntum.Services
                 .FirstOrDefaultAsync(w => w.Id == workflowId);
             if (workflow == null) throw new Exception("Workflow not found");
 
+            if (!await _workflowService.CanEmployeeStartWorkflowAsync(authorId, workflowId))
+                throw new UnauthorizedAccessException("Вы не можете начать этот процесс: проверьте должность на начальном этапе или активность процесса.");
+
             var initialState = await _dbContext.WorkflowStates
                 .FirstOrDefaultAsync(s => s.WorkflowId == workflowId && s.IsInitial);
             if (initialState == null) throw new Exception("No initial state");
             // Сохраняем в файл
-            var storedRelativePath = await _fileStorage.SaveFileAsync(fileStream, originalFileName, "pending");
+            var storedRelativePath = await _fileStorage.SaveFileAsync(fileStream, originalFileName, DocumentStorageFolders.Workflows);
 
             // Заполняем метаданные
             var document = new Document
@@ -54,6 +55,7 @@ namespace DocumEntum.Services
                 StoredFileName = storedRelativePath,
                 FileSize = fileSize,
                 ContentType = contentType,
+                ApprovedVersion = 0,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -79,30 +81,192 @@ namespace DocumEntum.Services
 
             var userDeptId = await _currentUserService.GetDepartmentIdAsync();
 
-            // Документы, где автор – текущий сотрудник
+            // Мои документы (все не удалённые)
             var myDocuments = _dbContext.Documents
                 .Include(d => d.CurrentState)
                 .Include(d => d.DocumentType)
                 .Include(d => d.Author)
                 .Where(d => d.AuthorId == employee.Id && !d.IsDeleted);
 
+            // Очередь: чужие неутверждённые, где я участник текущего этапа (не автор — у автора уже в myDocuments)
+            var queueInWorkflow = _dbContext.Documents
+                .Include(d => d.CurrentState)
+                .Include(d => d.DocumentType)
+                .Include(d => d.Author)
+                .Where(d => !d.IsDeleted && d.AuthorId != employee.Id && !d.CurrentState.IsFinal)
+                .Where(d =>
+                    (d.CurrentState.RequiredPositionId != null
+                     && _dbContext.EmployeePositions.Any(ep =>
+                         ep.EmployeeId == employee.Id && ep.EndDate == null
+                         && ep.PositionId == d.CurrentState.RequiredPositionId))
+                    || (d.CurrentState.RequiredPositionId == null && !d.CurrentState.IsInitial));
+
             // Утверждённые документы, доступные отделу текущего сотрудника
             var finalDocuments = _dbContext.Documents
                 .Include(d => d.CurrentState)
                 .Include(d => d.DocumentType)
                 .Include(d => d.Author)
-                .Where(d => d.CurrentState.IsFinal && !d.IsDeleted);
+                .Where(d => d.CurrentState.IsFinal && !d.IsDeleted && d.ReplacesDocumentId == null);
 
             if (userDeptId.HasValue)
                 finalDocuments = finalDocuments.Where(d => d.DocumentType.AvailableDepartments.Any(dept => dept.Id == userDeptId.Value));
             else
                 finalDocuments = finalDocuments.Where(d => false);
 
-            var documents = await myDocuments.Union(finalDocuments)
+            var documents = await myDocuments.Union(queueInWorkflow).Union(finalDocuments)
                 .OrderByDescending(d => d.CreatedAt)
                 .ToListAsync();
 
             return documents;
+        }
+
+        public async Task<List<Document>> GetApprovedDocumentsAsync()
+        {
+            if (await _currentUserService.IsAdminAsync())
+            {
+                return await _dbContext.Documents
+                    .Include(d => d.CurrentState)
+                    .Include(d => d.DocumentType)
+                    .Include(d => d.Author)
+                    .Where(d => d.CurrentState.IsFinal && !d.IsDeleted && d.ReplacesDocumentId == null)
+                    .OrderByDescending(d => d.CreatedAt)
+                    .ToListAsync();
+            }
+
+            var employee = await _currentUserService.GetCurrentEmployeeAsync();
+            if (employee == null) return new List<Document>();
+
+            var userDeptId = await _currentUserService.GetDepartmentIdAsync();
+
+            var query = _dbContext.Documents
+                .Include(d => d.CurrentState)
+                .Include(d => d.DocumentType)
+                .Include(d => d.Author)
+                .Where(d => d.CurrentState.IsFinal && !d.IsDeleted && d.ReplacesDocumentId == null);
+
+            if (userDeptId.HasValue)
+                query = query.Where(d => d.AuthorId == employee.Id ||
+                    d.DocumentType.AvailableDepartments.Any(dept => dept.Id == userDeptId.Value));
+            else
+                query = query.Where(d => d.AuthorId == employee.Id);
+
+            return await query
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<List<Document>> GetWorkflowDocumentsAsync()
+        {
+            if (await _currentUserService.IsAdminAsync())
+            {
+                return await _dbContext.Documents
+                    .Include(d => d.CurrentState)
+                    .Include(d => d.DocumentType)
+                    .Include(d => d.Author)
+                    .Include(d => d.Workflow)
+                    .Where(d => !d.CurrentState.IsFinal && !d.IsDeleted)
+                    .OrderByDescending(d => d.CreatedAt)
+                    .ToListAsync();
+            }
+
+            var employee = await _currentUserService.GetCurrentEmployeeAsync();
+            if (employee == null) return new List<Document>();
+
+            return await _dbContext.Documents
+                .Include(d => d.CurrentState)
+                .Include(d => d.DocumentType)
+                .Include(d => d.Author)
+                .Include(d => d.Workflow)
+                .Where(d => !d.CurrentState.IsFinal && !d.IsDeleted)
+                .Where(d =>
+                    d.AuthorId == employee.Id
+                    || (d.CurrentState.RequiredPositionId != null
+                        && _dbContext.EmployeePositions.Any(ep =>
+                            ep.EmployeeId == employee.Id && ep.EndDate == null
+                            && ep.PositionId == d.CurrentState.RequiredPositionId))
+                    || (d.CurrentState.RequiredPositionId == null && !d.CurrentState.IsInitial))
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<List<DocumentVersion>> GetApprovedDocumentVersionsAsync(int approvedDocumentId)
+        {
+            var doc = await GetDocumentAsync(approvedDocumentId);
+            if (doc == null)
+                throw new UnauthorizedAccessException("Нет доступа к документу или документ не найден.");
+
+            return await _dbContext.DocumentVersions
+                .Where(v => v.DocumentId == approvedDocumentId)
+                .OrderByDescending(v => v.VersionNumber)
+                .ToListAsync();
+        }
+
+        public async Task<Document> StartEditApprovedDocumentAsync(int approvedDocumentId, int workflowId, int authorId, int? departmentId)
+        {
+            var currentEmployee = await _currentUserService.GetCurrentEmployeeAsync();
+            if (currentEmployee == null || currentEmployee.Id != authorId)
+                throw new UnauthorizedAccessException("Только сотрудник может начинать процесс изменения.");
+
+            var approved = await _dbContext.Documents
+                .Include(d => d.CurrentState)
+                .Include(d => d.DocumentType)
+                .FirstOrDefaultAsync(d => d.Id == approvedDocumentId);
+            if (approved == null || approved.CurrentState == null || !approved.CurrentState.IsFinal || approved.IsDeleted)
+                throw new InvalidOperationException("Утверждённый документ не найден или недоступен.");
+
+            if (approved.ReplacesDocumentId != null)
+                throw new InvalidOperationException("Нельзя запустить изменение для черновика процесса.");
+
+            var workflow = await _dbContext.Workflows.FirstOrDefaultAsync(w => w.Id == workflowId);
+            if (workflow == null)
+                throw new InvalidOperationException("Бизнес-процесс не найден.");
+            if (workflow.DocumentTypeId != approved.DocumentTypeId)
+                throw new InvalidOperationException("Тип бизнес-процесса должен совпадать с типом утверждённого документа.");
+
+            var hasActiveDraft = await (
+                from d in _dbContext.Documents
+                join s in _dbContext.WorkflowStates on d.CurrentStateId equals s.Id
+                where d.ReplacesDocumentId == approvedDocumentId && !s.IsFinal
+                select d).AnyAsync();
+            if (hasActiveDraft)
+                throw new InvalidOperationException("Для этого документа уже есть активный процесс изменения.");
+
+            var initialState = await _dbContext.WorkflowStates
+                .FirstOrDefaultAsync(s => s.WorkflowId == workflowId && s.IsInitial);
+            if (initialState == null)
+                throw new InvalidOperationException("У процесса нет начального состояния.");
+
+            var storedPath = await _fileStorage.CopyFileAsync(approved.StoredFileName, DocumentStorageFolders.Workflows);
+
+            var document = new Document
+            {
+                Title = approved.Title,
+                AuthorId = authorId,
+                WorkflowId = workflowId,
+                CurrentStateId = initialState.Id,
+                DepartmentId = departmentId ?? approved.DepartmentId,
+                DocumentTypeId = approved.DocumentTypeId,
+                ExtraAttributes = CloneExtraAttributes(approved.ExtraAttributes),
+                FileName = approved.FileName,
+                FileExtension = approved.FileExtension,
+                StoredFileName = storedPath,
+                FileSize = approved.FileSize,
+                ContentType = approved.ContentType,
+                ReplacesDocumentId = approvedDocumentId,
+                ApprovedVersion = 0,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _dbContext.Documents.Add(document);
+            await _dbContext.SaveChangesAsync();
+            return document;
+        }
+
+        private static Dictionary<string, object> CloneExtraAttributes(Dictionary<string, object> source)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(source);
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json)
+                   ?? new Dictionary<string, object>();
         }
 
         public async Task<List<DocumentHistory>> GetDocumentHistoryAsync(int documentId)
@@ -131,7 +295,7 @@ namespace DocumEntum.Services
             await _fileStorage.DeleteFileAsync(document.StoredFileName);
 
             // Сохраняем новый файл
-            var newRelativePath = await _fileStorage.SaveFileAsync(newFileStream, originalFileName, "pending");
+            var newRelativePath = await _fileStorage.SaveFileAsync(newFileStream, originalFileName, DocumentStorageFolders.Workflows);
 
             // Обновляем метаданные
             document.StoredFileName = newRelativePath;
@@ -175,8 +339,15 @@ namespace DocumEntum.Services
             if (doc.AuthorId == emp.Id)
                 return doc;
 
-            // Если документ в утверждённом (конечном) состоянии – проверить отделы из типа документа
-            if (doc.CurrentState != null && doc.CurrentState.IsFinal && doc.DocumentType != null)
+            // Участник неутверждённого процесса на текущем этапе (бухгалтер, начальник и т.д.)
+            if (doc.CurrentState != null && !doc.CurrentState.IsFinal)
+            {
+                if (await _workflowService.CanEmployeeAccessWorkflowDocumentAsync(doc, emp.Id))
+                    return doc;
+            }
+
+            // Утверждённый документ в каталоге: только записи без черновика замены
+            if (doc.CurrentState != null && doc.CurrentState.IsFinal && doc.DocumentType != null && doc.ReplacesDocumentId == null)
             {
                 var userDeptId = await _currentUserService.GetDepartmentIdAsync();
                 if (userDeptId.HasValue && doc.DocumentType.AvailableDepartments.Any(d => d.Id == userDeptId.Value))
@@ -203,10 +374,18 @@ namespace DocumEntum.Services
             var doc = await _dbContext.Documents.FindAsync(id);
             if (doc == null) return;
 
-            // Только автор или администратор может менять атрибуты, но администратор – только в исключительных случаях
             var employee = await _currentUserService.GetCurrentEmployeeAsync();
-            if (employee == null || (doc.AuthorId != employee.Id && !await _currentUserService.IsAdminAsync()))
-                throw new UnauthorizedAccessException("Нет прав на изменение атрибутов документа.");
+            if (await _currentUserService.IsAdminAsync())
+            {
+                // администратор — исключительный доступ без проверки этапа
+            }
+            else
+            {
+                if (employee == null)
+                    throw new UnauthorizedAccessException("Нет прав на изменение атрибутов документа.");
+                if (!await _workflowService.CanEditDocumentAsync(doc, employee.Id))
+                    throw new UnauthorizedAccessException("На этом этапе редактирование атрибутов запрещено (CanEdit или должность).");
+            }
 
             doc.ExtraAttributes = extraAttributes;
             doc.UpdatedAt = DateTime.UtcNow;
@@ -214,7 +393,9 @@ namespace DocumEntum.Services
         }
         public async Task DeleteDocumentAsync(int id)
         {
-            var doc = await _dbContext.Documents.FindAsync(id);
+            var doc = await _dbContext.Documents
+                .Include(d => d.CurrentState)
+                .FirstOrDefaultAsync(d => d.Id == id);
             if (doc == null) return;
 
             var isAdmin = await _currentUserService.IsAdminAsync();
@@ -224,9 +405,22 @@ namespace DocumEntum.Services
             if (!isAdmin && !isAuthor)
                 throw new UnauthorizedAccessException("Удалять документ может только автор или администратор.");
 
-            // Мягкое удаление: просто ставим флаг
-            doc.IsDeleted = true;
-            doc.UpdatedAt = DateTime.UtcNow;
+            var isApprovedCatalog = doc.CurrentState != null && doc.CurrentState.IsFinal && doc.ReplacesDocumentId == null;
+
+            if (isApprovedCatalog)
+            {
+                doc.IsDeleted = true;
+                doc.UpdatedAt = DateTime.UtcNow;
+                await _dbContext.SaveChangesAsync();
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(doc.StoredFileName))
+                await _fileStorage.DeleteFileAsync(doc.StoredFileName);
+
+            var histories = await _dbContext.DocumentHistories.Where(h => h.DocumentId == doc.Id).ToListAsync();
+            _dbContext.DocumentHistories.RemoveRange(histories);
+            _dbContext.Documents.Remove(doc);
             await _dbContext.SaveChangesAsync();
         }
         public async Task<List<Document>> GetAllDocumentsAsync(bool includeDeleted = false)

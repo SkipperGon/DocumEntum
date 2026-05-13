@@ -1,4 +1,4 @@
-﻿using DocumEntum.Data;
+using DocumEntum.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocumEntum.Services
@@ -14,7 +14,7 @@ namespace DocumEntum.Services
         {
             _dbContext = dbContext;
             _currentUserService = currentUserService;
-            _fileStorage= fileStorage;
+            _fileStorage = fileStorage;
         }
         public async Task<bool> CanEditDocumentAsync(Document document, int employeeId)
         {
@@ -37,7 +37,7 @@ namespace DocumEntum.Services
             // Проверяем, что текущий сотрудник занимает требуемую должность
             var employeePositions = await _dbContext.EmployeePositions
                 .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null && ep.PositionId != null)
-                .Select(ep => ep.PositionId.Value)
+                .Select(ep => ep.PositionId!.Value)
                 .ToListAsync();
 
             return employeePositions.Contains(currentState.RequiredPositionId.Value);
@@ -58,7 +58,7 @@ namespace DocumEntum.Services
             {
                 var employeePositions = await _dbContext.EmployeePositions
                     .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null && ep.PositionId != null)
-                    .Select(ep => ep.PositionId.Value)
+                    .Select(ep => ep.PositionId!.Value)
                     .ToListAsync();
 
                 if (!employeePositions.Contains(currentState.RequiredPositionId.Value))
@@ -67,11 +67,12 @@ namespace DocumEntum.Services
 
             var employeePositionIds = await _dbContext.EmployeePositions
                 .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null && ep.PositionId != null)
-                .Select(ep => ep.PositionId.Value)
+                .Select(ep => ep.PositionId!.Value)
                 .ToListAsync();
 
             // Загружаем все возможные переходы из текущего состояния
             var transitions = await _dbContext.WorkflowTransitions
+                .Include(t => t.ToState)
                 .Where(t => t.WorkflowId == document.WorkflowId && t.FromStateId == document.CurrentStateId)
                 .ToListAsync();
 
@@ -89,22 +90,6 @@ namespace DocumEntum.Services
             return available;
         }
 
-        private async Task<List<string>> GetUserRolesAsync(string userId)
-        {
-            if (string.IsNullOrEmpty(userId))
-                return new List<string>();
-
-            var user = await _dbContext.Users.FindAsync(userId);
-            if (user == null)
-                return new List<string>();
-
-            var userRoles = await (from ur in _dbContext.UserRoles
-                                   join r in _dbContext.Roles on ur.RoleId equals r.Id
-                                   where ur.UserId == userId
-                                   select r.Name ?? "")
-                                  .ToListAsync();
-            return userRoles;
-        }
         public async Task<bool> ExecuteTransitionAsync(Document document, string actionName, int employeeId, string? comment = null)
         {
             if (await _currentUserService.IsAdminAsync())
@@ -119,32 +104,40 @@ namespace DocumEntum.Services
             var available = await GetAvailableTransitionsAsync(document, employeeId);
             if (!available.Any(t => t.Id == transition.Id)) return false;
 
+            if (document.ReplacesDocumentId is int replacedId)
+            {
+                var canonical = await _dbContext.Documents
+                    .Include(d => d.CurrentState)
+                    .FirstOrDefaultAsync(d => d.Id == replacedId);
+                if (canonical == null || canonical.CurrentState == null || !canonical.CurrentState.IsFinal || canonical.IsDeleted)
+                    return false;
+            }
+
             var fromStateId = document.CurrentStateId;
             document.CurrentStateId = transition.ToStateId;
             document.UpdatedAt = DateTime.UtcNow;
 
-            // Получаем целевое состояние
             var newState = await _dbContext.WorkflowStates.FindAsync(transition.ToStateId);
-            if (newState != null)
+            if (newState == null)
+                return false;
+
+            if (newState.IsRejected)
             {
-                if (newState.IsFinal && !newState.IsRejected)
-                {
-                    // Утверждённый документ: перемещаем файл из pending в корневую папку
-                    if (!string.IsNullOrEmpty(document.StoredFileName) &&
-                        document.StoredFileName.StartsWith("pending/"))
-                    {
-                        var newPath = await _fileStorage.MoveFileAsync(document.StoredFileName, "");
-                        document.StoredFileName = newPath;
-                    }
-                }
-                else if (newState.IsRejected)
-                {
-                    // Окончательная браковка: удаляем файл и помечаем документ как удалённый
-                    if (!string.IsNullOrEmpty(document.StoredFileName))
-                        await _fileStorage.DeleteFileAsync(document.StoredFileName);
-                    document.StoredFileName = null;
-                    document.IsDeleted = true;
-                }
+                await RejectWorkflowDocumentAsync(document);
+                await _dbContext.SaveChangesAsync();
+                return true;
+            }
+
+            if (newState.IsFinal && document.ReplacesDocumentId is int canonicalId)
+            {
+                await MergeDraftIntoCanonicalAsync(document, canonicalId, fromStateId, transition.ToStateId, actionName, employeeId, comment);
+                await _dbContext.SaveChangesAsync();
+                return true;
+            }
+
+            if (newState.IsFinal)
+            {
+                await CompleteFirstApprovalAsync(document);
             }
 
             _dbContext.DocumentHistories.Add(new DocumentHistory
@@ -162,6 +155,187 @@ namespace DocumEntum.Services
             return true;
         }
 
-       
+        private async Task CompleteFirstApprovalAsync(Document document)
+        {
+            if (!string.IsNullOrEmpty(document.StoredFileName) &&
+                DocumentStorageFolders.IsStagingWorkflowPath(document.StoredFileName))
+            {
+                var newPath = await _fileStorage.MoveFileAsync(document.StoredFileName, DocumentStorageFolders.Documents);
+                document.StoredFileName = newPath;
+            }
+
+            document.ApprovedVersion = 1;
+        }
+
+        private async Task MergeDraftIntoCanonicalAsync(
+            Document draft,
+            int canonicalId,
+            int fromStateId,
+            int toStateId,
+            string actionName,
+            int employeeId,
+            string? comment)
+        {
+            var canonical = await _dbContext.Documents
+                .FirstAsync(d => d.Id == canonicalId);
+
+            var previousVersion = Math.Max(canonical.ApprovedVersion, 1);
+
+            _dbContext.DocumentVersions.Add(new DocumentVersion
+            {
+                DocumentId = canonical.Id,
+                VersionNumber = previousVersion,
+                Title = canonical.Title,
+                FileName = canonical.FileName,
+                StoredFileName = canonical.StoredFileName,
+                FileExtension = canonical.FileExtension,
+                FileSize = canonical.FileSize,
+                ContentType = canonical.ContentType,
+                ExtraAttributes = CloneExtraAttributes(canonical.ExtraAttributes),
+                ArchivedAt = DateTime.UtcNow
+            });
+
+            string newStoredPath;
+            if (!string.IsNullOrEmpty(draft.StoredFileName) &&
+                DocumentStorageFolders.IsStagingWorkflowPath(draft.StoredFileName))
+            {
+                newStoredPath = await _fileStorage.MoveFileAsync(draft.StoredFileName, DocumentStorageFolders.Documents);
+            }
+            else if (!string.IsNullOrEmpty(draft.StoredFileName))
+            {
+                newStoredPath = await _fileStorage.CopyFileAsync(draft.StoredFileName, DocumentStorageFolders.Documents);
+            }
+            else
+            {
+                newStoredPath = canonical.StoredFileName;
+            }
+
+            canonical.Title = draft.Title;
+            canonical.FileName = draft.FileName;
+            canonical.StoredFileName = newStoredPath;
+            canonical.FileExtension = draft.FileExtension;
+            canonical.FileSize = draft.FileSize;
+            canonical.ContentType = draft.ContentType;
+            canonical.ExtraAttributes = CloneExtraAttributes(draft.ExtraAttributes);
+            canonical.UpdatedAt = DateTime.UtcNow;
+            canonical.ApprovedVersion = previousVersion + 1;
+            if (draft.DepartmentId.HasValue)
+                canonical.DepartmentId = draft.DepartmentId;
+
+            var draftHistories = await _dbContext.DocumentHistories.Where(h => h.DocumentId == draft.Id).ToListAsync();
+            foreach (var h in draftHistories)
+                h.DocumentId = canonical.Id;
+
+            _dbContext.DocumentHistories.Add(new DocumentHistory
+            {
+                DocumentId = canonical.Id,
+                FromStateId = fromStateId,
+                ToStateId = toStateId,
+                ActionById = employeeId,
+                ActionName = actionName,
+                Comment = comment,
+                ActionAt = DateTime.UtcNow
+            });
+
+            _dbContext.Documents.Remove(draft);
+        }
+
+        private async Task RejectWorkflowDocumentAsync(Document document)
+        {
+            if (!string.IsNullOrEmpty(document.StoredFileName))
+                await _fileStorage.DeleteFileAsync(document.StoredFileName);
+
+            var histories = await _dbContext.DocumentHistories.Where(h => h.DocumentId == document.Id).ToListAsync();
+            _dbContext.DocumentHistories.RemoveRange(histories);
+            _dbContext.Documents.Remove(document);
+        }
+
+        public async Task<List<Workflow>> GetStartableWorkflowsAsync()
+        {
+            var employee = await _currentUserService.GetCurrentEmployeeAsync();
+            if (employee == null)
+                return new List<Workflow>();
+
+            var workflowIds = await (
+                from s in _dbContext.WorkflowStates
+                join w in _dbContext.Workflows on s.WorkflowId equals w.Id
+                where s.IsInitial && w.IsActive
+                      && (s.RequiredPositionId == null
+                          || _dbContext.EmployeePositions.Any(ep =>
+                              ep.EmployeeId == employee.Id
+                              && ep.EndDate == null
+                              && ep.PositionId != null
+                              && ep.PositionId == s.RequiredPositionId))
+                select w.Id).Distinct().ToListAsync();
+
+            return await _dbContext.Workflows
+                .Include(w => w.DocumentType)
+                .Where(w => workflowIds.Contains(w.Id))
+                .OrderBy(w => w.Name)
+                .ToListAsync();
+        }
+
+        public async Task<bool> CanEmployeeStartWorkflowAsync(int employeeId, int workflowId)
+        {
+            return await (
+                from s in _dbContext.WorkflowStates
+                join w in _dbContext.Workflows on s.WorkflowId equals w.Id
+                where w.Id == workflowId && w.IsActive && s.IsInitial
+                      && (s.RequiredPositionId == null
+                          || _dbContext.EmployeePositions.Any(ep =>
+                              ep.EmployeeId == employeeId
+                              && ep.EndDate == null
+                              && ep.PositionId != null
+                              && ep.PositionId == s.RequiredPositionId))
+                select s).AnyAsync();
+        }
+
+        public async Task<bool> CanEmployeeAccessWorkflowDocumentAsync(Document document, int employeeId)
+        {
+            if (document.AuthorId == employeeId)
+                return true;
+
+            var state = document.CurrentState;
+            if (state == null)
+            {
+                state = await _dbContext.WorkflowStates.AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.Id == document.CurrentStateId);
+                if (state == null)
+                    return false;
+            }
+
+            if (state.IsFinal)
+                return false;
+
+            if (state.RequiredPositionId == null)
+                return !state.IsInitial;
+
+            return await _dbContext.EmployeePositions.AnyAsync(ep =>
+                ep.EmployeeId == employeeId
+                && ep.EndDate == null
+                && ep.PositionId == state.RequiredPositionId);
+        }
+
+        public async Task<List<WorkflowTransition>> GetAvailableTransitionsFromInitialStateAsync(int workflowId, int employeeId)
+        {
+            var initial = await _dbContext.WorkflowStates
+                .FirstOrDefaultAsync(s => s.WorkflowId == workflowId && s.IsInitial);
+            if (initial == null)
+                return new List<WorkflowTransition>();
+
+            var temp = new Document
+            {
+                WorkflowId = workflowId,
+                CurrentStateId = initial.Id
+            };
+            return await GetAvailableTransitionsAsync(temp, employeeId);
+        }
+
+        private static Dictionary<string, object> CloneExtraAttributes(Dictionary<string, object> source)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(source);
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json)
+                   ?? new Dictionary<string, object>();
+        }
     }
 }

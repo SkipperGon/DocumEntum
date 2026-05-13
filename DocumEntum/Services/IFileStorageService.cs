@@ -1,4 +1,4 @@
-﻿namespace DocumEntum.Services
+namespace DocumEntum.Services
 {
     public interface IFileStorageService
     {
@@ -13,5 +13,8 @@
 
         // Переместить файл по относительному пути
         Task<string> MoveFileAsync(string sourceRelativePath, string targetSubFolder);
+
+        /// <summary>Копировать файл в подпапку (относительный путь как у SaveFileAsync).</summary>
+        Task<string> CopyFileAsync(string sourceRelativePath, string targetSubFolder);
     }
 }

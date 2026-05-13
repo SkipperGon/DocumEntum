@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DocumEntum.Data
@@ -45,12 +45,23 @@ namespace DocumEntum.Data
         public virtual DocumentType DocumentType { get; set; } = null!;
 
         /// <summary>
+        /// Если задано — этот экземпляр проходит workflow как изменение указанного утверждённого документа.
+        /// </summary>
+        public int? ReplacesDocumentId { get; set; }
+        public virtual Document? ReplacedDocument { get; set; }
+
+        /// <summary>
+        /// Номер версии для утверждённого документа (1 после первого утверждения; у черновика в процессе — 0).
+        /// </summary>
+        public int ApprovedVersion { get; set; }
+
+        /// <summary>
         /// Помечен ли документ как удалённый (soft delete).
-        /// При мягком удалении физический файл не удаляется.
+        /// Для утверждённых документов при скрытии запись и файл остаются; для черновиков в процессе удаление иное правило.
         /// </summary>
         public bool IsDeleted { get; set; }
 
-        // <summary>
+        /// <summary>
         /// Динамические атрибуты документа в формате JSONB.
         /// Позволяет хранить произвольную структуру полей (например, «Сумма», «СНИЛС», «Номер договора»).
         /// </summary>

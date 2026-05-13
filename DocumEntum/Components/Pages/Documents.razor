@@ -1,0 +1,83 @@
+@page "/Documents"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.AspNetCore.Authorization
+@inject IDocumentService DocumentService
+
+<PageTitle>Утверждённые документы</PageTitle>
+
+<h1 class="mb-3">Утверждённые документы</h1>
+
+<p class="text-muted mb-4">
+    Каталог утверждённых документов. Черновики и согласование —
+    <a href="Workflows">раздел «Процессы»</a>.
+</p>
+
+@if (loadError != null)
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+else if (isLoading)
+{
+    <p>Загрузка...</p>
+}
+else if (documents.Count == 0)
+{
+    <p class="text-muted">Нет доступных утверждённых документов.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Тип</th>
+                    <th>Автор</th>
+                    <th>Версия</th>
+                    <th>Создан</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var d in documents)
+                {
+                    <tr>
+                        <td>@d.Title</td>
+                        <td>@d.DocumentType?.Name</td>
+                        <td>@d.Author?.FullName</td>
+                        <td>@d.ApprovedVersion</td>
+                        <td>@d.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="@($"/api/documents/{d.Id}/download")" target="_blank">Скачать</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private string? loadError;
+    private List<Document> documents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            documents = await DocumentService.GetApprovedDocumentsAsync();
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

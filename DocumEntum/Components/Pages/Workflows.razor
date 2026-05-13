@@ -1,0 +1,391 @@
+@page "/Workflows"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
+@inject IDocumentService DocumentService
+@inject IWorkflowService WorkflowService
+@inject ICurrentUserService CurrentUserService
+
+<PageTitle>Процессы по документам</PageTitle>
+
+<h1 class="mb-3">Процессы по документам</h1>
+
+<p class="text-muted mb-4">
+    Документы в активном бизнес-процессе (ещё не утверждённые).
+    Утверждённые документы — в <a href="Documents">разделе «Документы»</a>.
+</p>
+
+@if (currentEmployee != null)
+{
+    <button type="button" class="btn btn-primary mb-3" @onclick="OpenStartModal">Новый процесс</button>
+}
+else
+{
+    <p class="text-muted small mb-3">Начать процесс могут только пользователи, привязанные к карточке сотрудника.</p>
+}
+
+@if (loadError != null)
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+else if (isLoading)
+{
+    <p>Загрузка...</p>
+}
+else if (documents.Count == 0)
+{
+    <p class="text-muted">Нет документов в процессе.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Тип</th>
+                    <th>Процесс</th>
+                    <th>Статус</th>
+                    <th>Автор</th>
+                    <th>Создан</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var d in documents)
+                {
+                    <tr>
+                        <td>
+                            @d.Title
+                            @if (d.ReplacesDocumentId.HasValue)
+                            {
+                                <span class="badge bg-secondary ms-1">изменение №@d.ReplacesDocumentId</span>
+                            }
+                        </td>
+                        <td>@d.DocumentType?.Name</td>
+                        <td>@d.Workflow?.Name</td>
+                        <td>@d.CurrentState?.Name</td>
+                        <td>@d.Author?.FullName</td>
+                        <td>@d.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="@($"/api/documents/{d.Id}/download")" target="_blank">Скачать</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (showStartModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(startModalStep == 1 ? "Новый процесс" : "Первый переход")</h5>
+                    <button type="button" class="btn-close" @onclick="CancelStartWizard"></button>
+                </div>
+                @if (startModalStep == 1)
+                {
+                    <EditForm Model="startModel" OnValidSubmit="SubmitStartProcessStep1">
+                        <DataAnnotationsValidator />
+                        <div class="modal-body">
+                            @if (startModalError != null)
+                            {
+                                <div class="alert alert-danger">@startModalError</div>
+                            }
+                            @if (startableWorkflows.Count == 0)
+                            {
+                                <p class="text-muted">Нет активных процессов, которые вы можете начать. На начальном этапе должна быть указана ваша должность (или этап без привязки к должности).</p>
+                            }
+                            else
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Бизнес-процесс</label>
+                                    <InputSelect @bind-Value="startModel.WorkflowId" class="form-select">
+                                        <option value="0">— выберите процесс —</option>
+                                        @foreach (var w in startableWorkflows)
+                                        {
+                                            <option value="@w.Id">@w.Name (@w.DocumentType?.Name)</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="() => startModel.WorkflowId" />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Название документа</label>
+                                    <InputText @bind-Value="startModel.Title" class="form-control" maxlength="500" />
+                                    <ValidationMessage For="() => startModel.Title" />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Файл</label>
+                                    <InputFile class="form-control" OnChange="OnStartFileSelected" accept="*/*" />
+                                    @if (startFileName != null)
+                                    {
+                                        <small class="text-muted">Выбран: @startFileName</small>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CancelStartWizard">Отмена</button>
+                            @if (startableWorkflows.Count > 0)
+                            {
+                                <button type="submit" class="btn btn-primary" disabled="@startSubmitting">
+                                    @(startSubmitting ? "Создание…" : "Далее")
+                                </button>
+                            }
+                        </div>
+                    </EditForm>
+                }
+                else
+                {
+                    <div class="modal-body">
+                        <p class="mb-2">Документ создан. Выберите действие для перехода с начального этапа (например, в «Составление»).</p>
+                        @if (transitionApplyError != null)
+                        {
+                            <div class="alert alert-danger">@transitionApplyError</div>
+                        }
+                        @if (pendingFirstTransitions.Count == 0)
+                        {
+                            <div class="alert alert-warning">Нет доступных переходов. Закройте окно или отмените — черновик будет удалён.</div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var t in pendingFirstTransitions)
+                                {
+                                    <button type="button" class="btn btn-primary"
+                                            disabled="@transitionApplying"
+                                            @onclick="async () => await ApplyFirstTransition(t.ActionName)">
+                                        @t.ActionName@if (t.ToState != null)
+                                        {
+                                            <text> → @t.ToState.Name</text>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CancelStartWizard" disabled="@transitionApplying">Отмена (удалить черновик)</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const long MaxUploadBytes = 100L * 1024 * 1024;
+
+    private bool isLoading = true;
+    private string? loadError;
+    private List<Document> documents = new();
+
+    private Employee? currentEmployee;
+    private bool showStartModal;
+    private int startModalStep = 1;
+    private List<Workflow> startableWorkflows = new();
+    private StartProcessForm startModel = new();
+    private IBrowserFile? startFile;
+    private string? startFileName;
+    private string? startModalError;
+    private bool startSubmitting;
+
+    private int? createdDocumentId;
+    private List<WorkflowTransition> pendingFirstTransitions = new();
+    private bool transitionApplying;
+    private string? transitionApplyError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentEmployee = await CurrentUserService.GetCurrentEmployeeAsync();
+        await ReloadDocumentsAsync();
+    }
+
+    private async Task ReloadDocumentsAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        try
+        {
+            documents = await DocumentService.GetWorkflowDocumentsAsync();
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenStartModal()
+    {
+        if (currentEmployee == null) return;
+
+        ResetStartModalState();
+        startableWorkflows = await WorkflowService.GetStartableWorkflowsAsync();
+        showStartModal = true;
+    }
+
+    private void ResetStartModalState()
+    {
+        startModalStep = 1;
+        startModalError = null;
+        startFile = null;
+        startFileName = null;
+        startModel = new StartProcessForm();
+        startSubmitting = false;
+        createdDocumentId = null;
+        pendingFirstTransitions = new();
+        transitionApplying = false;
+        transitionApplyError = null;
+    }
+
+    private async Task CancelStartWizard()
+    {
+        if (startModalStep == 2 && createdDocumentId.HasValue)
+        {
+            try
+            {
+                await DocumentService.DeleteDocumentAsync(createdDocumentId.Value);
+            }
+            catch
+            {
+                // игнорируем — модалку всё равно закрываем
+            }
+        }
+
+        showStartModal = false;
+        ResetStartModalState();
+    }
+
+    private void OnStartFileSelected(InputFileChangeEventArgs e)
+    {
+        startModalError = null;
+        startFile = e.FileCount > 0 ? e.File : null;
+        startFileName = startFile?.Name;
+    }
+
+    private async Task SubmitStartProcessStep1()
+    {
+        if (currentEmployee == null) return;
+
+        startModalError = null;
+        var title = startModel.Title.Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            startModalError = "Укажите название документа.";
+            return;
+        }
+
+        if (startModel.WorkflowId <= 0)
+        {
+            startModalError = "Выберите процесс.";
+            return;
+        }
+
+        if (startFile == null)
+        {
+            startModalError = "Прикрепите файл.";
+            return;
+        }
+
+        var previewTransitions = await WorkflowService.GetAvailableTransitionsFromInitialStateAsync(startModel.WorkflowId, currentEmployee.Id);
+        if (previewTransitions.Count == 0)
+        {
+            startModalError = "С начального этапа нет доступных вам переходов. Проверьте настройки переходов (AllowedPositionIds) и должность на этапе «Запрос».";
+            return;
+        }
+
+        startSubmitting = true;
+        try
+        {
+            await using var stream = startFile.OpenReadStream(MaxUploadBytes);
+            var deptId = await CurrentUserService.GetDepartmentIdAsync();
+            var doc = await DocumentService.CreateDocumentAsync(
+                title,
+                startModel.WorkflowId,
+                currentEmployee.Id,
+                deptId,
+                new Dictionary<string, object>(),
+                stream,
+                startFile.Name,
+                startFile.Size,
+                startFile.ContentType);
+
+            createdDocumentId = doc.Id;
+            pendingFirstTransitions = await WorkflowService.GetAvailableTransitionsAsync(doc, currentEmployee.Id);
+            if (pendingFirstTransitions.Count == 0)
+            {
+                startModalError = "Документ создан, но переходы недоступны. Удалите черновик через «Отмена» или обратитесь к администратору.";
+                return;
+            }
+
+            startModalStep = 2;
+            startFile = null;
+            startFileName = null;
+        }
+        catch (Exception ex)
+        {
+            startModalError = ex.Message;
+        }
+        finally
+        {
+            startSubmitting = false;
+        }
+    }
+
+    private async Task ApplyFirstTransition(string actionName)
+    {
+        if (currentEmployee == null || !createdDocumentId.HasValue) return;
+
+        transitionApplyError = null;
+        transitionApplying = true;
+        try
+        {
+            var doc = await DocumentService.GetDocumentAsync(createdDocumentId.Value);
+            if (doc == null)
+            {
+                transitionApplyError = "Документ не найден или нет доступа.";
+                return;
+            }
+
+            var ok = await WorkflowService.ExecuteTransitionAsync(doc, actionName, currentEmployee.Id);
+            if (!ok)
+            {
+                transitionApplyError = "Переход не выполнен. Проверьте права на действие.";
+                return;
+            }
+
+            showStartModal = false;
+            ResetStartModalState();
+            await ReloadDocumentsAsync();
+        }
+        catch (Exception ex)
+        {
+            transitionApplyError = ex.Message;
+        }
+        finally
+        {
+            transitionApplying = false;
+        }
+    }
+
+    private sealed class StartProcessForm
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Выберите процесс")]
+        public int WorkflowId { get; set; }
+
+        [Required(ErrorMessage = "Укажите название")]
+        [MaxLength(500)]
+        public string Title { get; set; } = string.Empty;
+    }
+}

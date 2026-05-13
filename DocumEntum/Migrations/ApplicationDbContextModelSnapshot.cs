@@ -143,6 +143,9 @@ namespace DocumEntum.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ApprovedVersion")
+                        .HasColumnType("integer");
+
                     b.Property<int>("AuthorId")
                         .HasColumnType("integer");
 
@@ -183,10 +186,13 @@ namespace DocumEntum.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<int?>("ReplacesDocumentId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("StoredFileName")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -210,6 +216,8 @@ namespace DocumEntum.Migrations
                     b.HasIndex("DepartmentId");
 
                     b.HasIndex("DocumentTypeId");
+
+                    b.HasIndex("ReplacesDocumentId");
 
                     b.HasIndex("WorkflowId");
 
@@ -276,6 +284,62 @@ namespace DocumEntum.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("DocumentTypes");
+                });
+
+            modelBuilder.Entity("DocumEntum.Data.DocumentVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("DocumentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExtraAttributes")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId", "VersionNumber");
+
+                    b.ToTable("DocumentVersions");
                 });
 
             modelBuilder.Entity("DocumEntum.Data.Employee", b =>
@@ -659,6 +723,11 @@ namespace DocumEntum.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("DocumEntum.Data.Document", "ReplacedDocument")
+                        .WithMany()
+                        .HasForeignKey("ReplacesDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("DocumEntum.Data.Workflow", "Workflow")
                         .WithMany()
                         .HasForeignKey("WorkflowId")
@@ -672,6 +741,8 @@ namespace DocumEntum.Migrations
                     b.Navigation("Department");
 
                     b.Navigation("DocumentType");
+
+                    b.Navigation("ReplacedDocument");
 
                     b.Navigation("Workflow");
                 });
@@ -691,6 +762,17 @@ namespace DocumEntum.Migrations
                         .IsRequired();
 
                     b.Navigation("ActionBy");
+
+                    b.Navigation("Document");
+                });
+
+            modelBuilder.Entity("DocumEntum.Data.DocumentVersion", b =>
+                {
+                    b.HasOne("DocumEntum.Data.Document", "Document")
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Document");
                 });

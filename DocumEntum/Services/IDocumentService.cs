@@ -1,4 +1,4 @@
-﻿using DocumEntum.Data;
+using DocumEntum.Data;
 
 namespace DocumEntum.Services
 {
@@ -18,7 +18,19 @@ namespace DocumEntum.Services
         Task DeleteDocumentAsync(int id);
         
         Task<List<Document>> GetAccessibleDocumentsAsync();
+
+        /// <summary>Утверждённые документы (каталог): финальное состояние, не скрытые, не черновик замены.</summary>
+        Task<List<Document>> GetApprovedDocumentsAsync();
+
+        /// <summary>Документы в активном бизнес-процессе (ещё не утверждённые).</summary>
+        Task<List<Document>> GetWorkflowDocumentsAsync();
+
         Task<List<DocumentHistory>> GetDocumentHistoryAsync(int documentId);
+
+        Task<List<DocumentVersion>> GetApprovedDocumentVersionsAsync(int approvedDocumentId);
+
+        /// <summary>Запуск процесса изменения утверждённого документа (тип workflow должен совпадать с типом документа).</summary>
+        Task<Document> StartEditApprovedDocumentAsync(int approvedDocumentId, int workflowId, int authorId, int? departmentId);
 
         // Административные методы
         // для админов

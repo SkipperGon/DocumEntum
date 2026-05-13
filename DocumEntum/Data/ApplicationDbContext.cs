@@ -20,6 +20,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WorkflowState> WorkflowStates { get; set; }
     public DbSet<WorkflowTransition> WorkflowTransitions { get; set; }
     public DbSet<Document> Documents { get; set; }
+    public DbSet<DocumentVersion> DocumentVersions { get; set; }
     public DbSet<DocumentHistory> DocumentHistories { get; set; }
     public DbSet<DocumentType> DocumentTypes { get; set; }
 
@@ -167,7 +168,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
             // Новые файловые поля
             entity.Property(d => d.FileName).IsRequired().HasMaxLength(500);
-            entity.Property(d => d.StoredFileName).IsRequired().HasMaxLength(100);
+            entity.Property(d => d.StoredFileName).IsRequired().HasMaxLength(260);
             entity.Property(d => d.FileExtension).IsRequired().HasMaxLength(50);
             entity.Property(d => d.FileSize).IsRequired();
             entity.Property(d => d.ContentType).IsRequired().HasMaxLength(200);
@@ -212,10 +213,48 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(d => d.DepartmentId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(d => d.ReplacedDocument)
+                .WithMany()
+                .HasForeignKey(d => d.ReplacesDocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Индексы для поиска
             entity.HasIndex(d => d.CreatedAt);
             entity.HasIndex(d => d.CurrentStateId);
             entity.HasIndex(d => d.DepartmentId);
+            entity.HasIndex(d => d.ReplacesDocumentId);
+        });
+
+        builder.Entity<DocumentVersion>(entity =>
+        {
+            entity.HasKey(v => v.Id);
+            entity.Property(v => v.Title).IsRequired().HasMaxLength(500);
+            entity.Property(v => v.FileName).IsRequired().HasMaxLength(500);
+            entity.Property(v => v.StoredFileName).IsRequired().HasMaxLength(260);
+            entity.Property(v => v.FileExtension).IsRequired().HasMaxLength(50);
+            entity.Property(v => v.ContentType).IsRequired().HasMaxLength(200);
+
+            var versionExtraComparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<Dictionary<string, object>>(
+                (d1, d2) => d1.Count == d2.Count && !d1.Except(d2).Any(),
+                d => d.Aggregate(0, (a, p) => HashCode.Combine(
+                    a, p.Key.GetHashCode(), p.Value != null ? p.Value.GetHashCode() : 0)),
+                d => d.ToDictionary(k => k.Key, k => k.Value)
+            );
+            entity.Property(v => v.ExtraAttributes)
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions)null),
+                    v => System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(v, (System.Text.Json.JsonSerializerOptions)null)
+                        ?? new Dictionary<string, object>()
+                ).Metadata.SetValueComparer(versionExtraComparer);
+
+            entity.HasOne(v => v.Document)
+                .WithMany()
+                .HasForeignKey(v => v.DocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(v => new { v.DocumentId, v.VersionNumber });
         });
 
         builder.Entity<DocumentHistory>(entity =>
