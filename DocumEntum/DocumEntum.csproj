@@ -18,6 +18,7 @@
   <ItemGroup>
     <Folder Include="Components\Shared\" />
     <Folder Include="Migrations\" />
+    <Folder Include="wwwroot\assets\" />
   </ItemGroup>
 
 </Project>
