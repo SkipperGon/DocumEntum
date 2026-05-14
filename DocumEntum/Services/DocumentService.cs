@@ -18,7 +18,6 @@ namespace DocumEntum.Services
             _currentUserService = currentUserService;
             _workflowService = workflowService;
         }
-        
         public async Task<List<Document>> GetAccessibleDocumentsAsync()
         {
             if (await _currentUserService.IsAdminAsync())
@@ -37,6 +36,27 @@ namespace DocumEntum.Services
 
             var userDeptId = await _currentUserService.GetDepartmentIdAsync();
 
+            // Получаем список ID всех активных должностей текущего сотрудника
+            var employeePositionIds = await _dbContext.EmployeePositions
+                .Where(ep => ep.EmployeeId == employee.Id && ep.EndDate == null && ep.PositionId != null)
+                .Select(ep => ep.PositionId!.Value)
+                .ToListAsync();
+
+            // Собираем StateId, из которых у сотрудника есть дополнительные переходы (как у бухгалтера для возврата)
+            var allTransitions = await _dbContext.WorkflowTransitions.ToListAsync();
+            var allowedStateIds = new HashSet<int>();
+            foreach (var t in allTransitions)
+            {
+                if (!string.IsNullOrEmpty(t.AllowedPositionIds))
+                {
+                    var allowedIds = t.AllowedPositionIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => int.Parse(p.Trim()));
+                    if (allowedIds.Any(posId => employeePositionIds.Contains(posId)))
+                    {
+                        allowedStateIds.Add(t.FromStateId);
+                    }
+                }
+            }
+
             // Мои документы (все не удалённые)
             var myDocuments = _dbContext.Documents
                 .Include(d => d.CurrentState)
@@ -44,18 +64,16 @@ namespace DocumEntum.Services
                 .Include(d => d.Author)
                 .Where(d => d.AuthorId == employee.Id && !d.IsDeleted);
 
-            // Очередь: чужие неутверждённые, где я участник текущего этапа (не автор — у автора уже в myDocuments)
+            // Очередь: чужие неутверждённые, где я владелец этапа ИЛИ у меня есть разрешенный переход
             var queueInWorkflow = _dbContext.Documents
                 .Include(d => d.CurrentState)
                 .Include(d => d.DocumentType)
                 .Include(d => d.Author)
                 .Where(d => !d.IsDeleted && d.AuthorId != employee.Id && !d.CurrentState.IsFinal)
                 .Where(d =>
-                    (d.CurrentState.RequiredPositionId != null
-                     && _dbContext.EmployeePositions.Any(ep =>
-                         ep.EmployeeId == employee.Id && ep.EndDate == null
-                         && ep.PositionId == d.CurrentState.RequiredPositionId))
-                    || (d.CurrentState.RequiredPositionId == null && !d.CurrentState.IsInitial));
+                    (d.CurrentState.RequiredPositionId != null && employeePositionIds.Contains(d.CurrentState.RequiredPositionId.Value))
+                    || (d.CurrentState.RequiredPositionId == null && !d.CurrentState.IsInitial)
+                    || allowedStateIds.Contains(d.CurrentStateId)); // <-- Добавлен доступ по переходам
 
             // Утверждённые документы, доступные отделу текущего сотрудника
             var finalDocuments = _dbContext.Documents
@@ -76,6 +94,59 @@ namespace DocumEntum.Services
             return documents;
         }
 
+        public async Task<List<Document>> GetWorkflowDocumentsAsync()
+        {
+            if (await _currentUserService.IsAdminAsync())
+            {
+                return await _dbContext.Documents
+                    .Include(d => d.CurrentState)
+                    .Include(d => d.DocumentType)
+                    .Include(d => d.Author)
+                    .Include(d => d.Workflow)
+                    .Where(d => !d.CurrentState.IsFinal && !d.IsDeleted)
+                    .OrderByDescending(d => d.CreatedAt)
+                    .ToListAsync();
+            }
+
+            var employee = await _currentUserService.GetCurrentEmployeeAsync();
+            if (employee == null) return new List<Document>();
+
+            // Получаем ID должностей
+            var employeePositionIds = await _dbContext.EmployeePositions
+                .Where(ep => ep.EmployeeId == employee.Id && ep.EndDate == null && ep.PositionId != null)
+                .Select(ep => ep.PositionId!.Value)
+                .ToListAsync();
+
+            // Собираем StateId по разрешенным переходам
+            var allTransitions = await _dbContext.WorkflowTransitions.ToListAsync();
+            var allowedStateIds = new HashSet<int>();
+            foreach (var t in allTransitions)
+            {
+                if (!string.IsNullOrEmpty(t.AllowedPositionIds))
+                {
+                    var allowedIds = t.AllowedPositionIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => int.Parse(p.Trim()));
+                    if (allowedIds.Any(posId => employeePositionIds.Contains(posId)))
+                    {
+                        allowedStateIds.Add(t.FromStateId);
+                    }
+                }
+            }
+
+            return await _dbContext.Documents
+                .Include(d => d.CurrentState)
+                .Include(d => d.DocumentType)
+                .Include(d => d.Author)
+                .Include(d => d.Workflow)
+                .Where(d => !d.CurrentState.IsFinal && !d.IsDeleted)
+                .Where(d =>
+                    d.AuthorId == employee.Id
+                    || (d.CurrentState.RequiredPositionId != null && employeePositionIds.Contains(d.CurrentState.RequiredPositionId.Value))
+                    || (d.CurrentState.RequiredPositionId == null && !d.CurrentState.IsInitial)
+                    || allowedStateIds.Contains(d.CurrentStateId)) // <-- Добавлен доступ по переходам
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+        }
+        
         public async Task<(Stream? FileStream, string ContentType, string FileName, string FileExtension)?> GetDocumentVersionFileAsync(int versionId)
         {
             var version = await _dbContext.DocumentVersions.FindAsync(versionId);
@@ -204,40 +275,6 @@ namespace DocumEntum.Services
                 query = query.Where(d => d.AuthorId == employee.Id);
 
             return await query
-                .OrderByDescending(d => d.CreatedAt)
-                .ToListAsync();
-        }
-
-        public async Task<List<Document>> GetWorkflowDocumentsAsync()
-        {
-            if (await _currentUserService.IsAdminAsync())
-            {
-                return await _dbContext.Documents
-                    .Include(d => d.CurrentState)
-                    .Include(d => d.DocumentType)
-                    .Include(d => d.Author)
-                    .Include(d => d.Workflow)
-                    .Where(d => !d.CurrentState.IsFinal && !d.IsDeleted)
-                    .OrderByDescending(d => d.CreatedAt)
-                    .ToListAsync();
-            }
-
-            var employee = await _currentUserService.GetCurrentEmployeeAsync();
-            if (employee == null) return new List<Document>();
-
-            return await _dbContext.Documents
-                .Include(d => d.CurrentState)
-                .Include(d => d.DocumentType)
-                .Include(d => d.Author)
-                .Include(d => d.Workflow)
-                .Where(d => !d.CurrentState.IsFinal && !d.IsDeleted)
-                .Where(d =>
-                    d.AuthorId == employee.Id
-                    || (d.CurrentState.RequiredPositionId != null
-                        && _dbContext.EmployeePositions.Any(ep =>
-                            ep.EmployeeId == employee.Id && ep.EndDate == null
-                            && ep.PositionId == d.CurrentState.RequiredPositionId))
-                    || (d.CurrentState.RequiredPositionId == null && !d.CurrentState.IsInitial))
                 .OrderByDescending(d => d.CreatedAt)
                 .ToListAsync();
         }
