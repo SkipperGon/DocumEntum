@@ -1,0 +1,121 @@
+﻿@page "/DocumentTypes"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DocumEntum.Data
+@using DocumEntum.Services
+@using Microsoft.AspNetCore.Authorization
+@inject IDocumentTypeService DocumentTypeService
+@inject ICurrentUserService CurrentUserService
+@inject IOrganizationService OrgService
+
+<PageTitle>Типы документов</PageTitle>
+
+<h1 class="mb-4">Типы документов</h1>
+
+@if (isLoading)
+{
+    <p>Загрузка...</p>
+}
+else if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (!documentTypes.Any())
+{
+    <p class="text-muted">Типы документов не найдены.</p>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        @foreach (var docType in documentTypes)
+        {
+            var isAvailable = availabilityMap.GetValueOrDefault(docType.Id, false);
+            <div class="col">
+                <div class="card h-100 bg-dark text-white border-secondary">
+                    <div class="card-body">
+                        <h5 class="card-title">@docType.Name</h5>
+                        <p class="card-text text-light">
+                            @(string.IsNullOrEmpty(docType.Description) ? "—" : docType.Description)
+                        </p>
+                    </div>
+                    <div class="card-footer bg-transparent border-secondary">
+                        @if (isAvailable)
+                        {
+                            <span class="badge bg-success">Доступен</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Недоступен</span>
+                        }
+                         <br/>
+                        <small class="text-muted ms-2">
+                            @(docType.AvailableDepartments.Any()
+                                ? $"Доступен для: {string.Join(", ", docType.AvailableDepartments.Select(d => d.Name))}"
+                                : "Не ограничен отделами")
+                        </small>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<DocumentType> documentTypes = new();
+    private Dictionary<int, bool> availabilityMap = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadData()
+    {
+        documentTypes = await DocumentTypeService.GetAllAsync();
+
+        var isAdmin = await CurrentUserService.IsAdminAsync();
+        if (isAdmin)
+        {
+            // Администратору доступны все типы
+            foreach (var dt in documentTypes)
+                availabilityMap[dt.Id] = true;
+            return;
+        }
+
+        var employee = await CurrentUserService.GetCurrentEmployeeAsync();
+        if (employee == null)
+        {
+            // Сотрудник не найден (маловероятно) – ничего не доступно
+            foreach (var dt in documentTypes)
+                availabilityMap[dt.Id] = false;
+            return;
+        }
+
+        var positions = await OrgService.GetCurrentEmployeePositionsAsync(employee.Id);
+        var userDepartmentIds = positions
+            .Where(p => p.Position?.DepartmentId != null)
+            .Select(p => p.Position!.DepartmentId)
+            .ToHashSet();
+
+        foreach (var dt in documentTypes)
+        {
+            if (userDepartmentIds.Count == 0)
+                availabilityMap[dt.Id] = false;
+            else
+                availabilityMap[dt.Id] = dt.AvailableDepartments.Any(d => userDepartmentIds.Contains(d.Id));
+        }
+    }
+}

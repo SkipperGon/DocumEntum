@@ -3,6 +3,7 @@ using DocumEntum.Components.Account;
 using DocumEntum.Data;
 using DocumEntum.Middleware;
 using DocumEntum.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +58,13 @@ namespace DocumEntum
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddSignInManager()
 .AddDefaultTokenProviders();
+
+            builder.Services.AddScoped<CustomCookieAuthenticationEvents>();
+            // Переопределяем события аутентификации для схемы Identity.Application
+            builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme, options =>
+            {
+                options.EventsType = typeof(CustomCookieAuthenticationEvents);
+            });
 
             var app = builder.Build();
 

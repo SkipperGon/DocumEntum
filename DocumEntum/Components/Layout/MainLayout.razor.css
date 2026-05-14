@@ -4,8 +4,6 @@
     flex-direction: column;
 }
 html, body, .page {
-    background-color: #121212; 
-    color: #ffffff;
 }
 main {
     flex: 1;
