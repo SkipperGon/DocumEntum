@@ -38,7 +38,7 @@ else
         @if (activeTab == "states")
         {
             <button class="btn btn-success mb-2" @onclick="() => OpenStateModal(null)">➕ Добавить состояние</button>
-            <table class="table table-bordered">
+            <table class="table table-bordered table-dark">
                 <thead>
                     <tr><th>Название</th><th>Описание</th><th>Начало</th><th>Конец</th><th>Браковка</th><th>Порядок</th><th>Должность</th><th>Можно редактировать</th><th>Действия</th></tr>
                 </thead>
@@ -66,7 +66,7 @@ else
         else
         {
             <button class="btn btn-success mb-2" @onclick="() => OpenTransitionModal(null)">➕ Добавить переход</button>
-            <table class="table table-bordered">
+            <table class="table table-bordered table-dark">
                 <thead>
                     <tr><th>Из состояния</th><th>В состояние</th><th>Действие</th><th>Разрешённые должности</th><th>Действия</th></tr>
                 </thead>
@@ -95,42 +95,42 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
-            <div class="modal-content">
+            <div class="modal-content bg-dark text-white">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingState == null ? "Новое состояние" : "Редактирование состояния")</h5>
-                    <button type="button" class="btn-close" @onclick="CloseStateModal"></button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseStateModal"></button>
                 </div>
                 <EditForm Model="stateEditModel" OnValidSubmit="SaveState">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Название</label>
-                            <InputText @bind-Value="stateEditModel.Name" class="form-control" />
+                            <InputText @bind-Value="stateEditModel.Name" class="form-control bg-dark text-white border-secondary" />
                             <ValidationMessage For="() => stateEditModel.Name" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Описание</label>
-                            <InputTextArea @bind-Value="stateEditModel.Description" class="form-control" />
+                            <InputTextArea @bind-Value="stateEditModel.Description" class="form-control bg-dark text-white border-secondary" />
                         </div>
                         <div class="mb-3 form-check">
-                            <InputCheckbox @bind-Value="stateEditModel.IsInitial" class="form-check-input" />
+                            <InputCheckbox @bind-Value="stateEditModel.IsInitial" class="form-check-input bg-dark text-white border-secondary" />
                             <label class="form-check-label">Начальное состояние</label>
                         </div>
                         <div class="mb-3 form-check">
-                            <InputCheckbox @bind-Value="stateEditModel.IsFinal" class="form-check-input" />
+                            <InputCheckbox @bind-Value="stateEditModel.IsFinal" class="form-check-input bg-dark text-white border-secondary" />
                             <label class="form-check-label">Конечное состояние</label>
                         </div>
                         <div class="mb-3 form-check">
-                            <InputCheckbox @bind-Value="stateEditModel.IsRejected" class="form-check-input" />
+                            <InputCheckbox @bind-Value="stateEditModel.IsRejected" class="form-check-input bg-dark text-white border-secondary" />
                             <label class="form-check-label">Окончательная браковка</label>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Порядок</label>
-                            <InputNumber @bind-Value="stateEditModel.Order" class="form-control" />
+                            <InputNumber @bind-Value="stateEditModel.Order" class="form-control bg-dark text-white border-secondary" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Обязательная должность (опционально)</label>
-                            <InputSelect @bind-Value="stateEditModel.RequiredPositionId" class="form-control">
+                            <InputSelect @bind-Value="stateEditModel.RequiredPositionId" class="form-control bg-dark text-white border-secondary">
                                 <option value="">— Не привязана —</option>
                                 @foreach (var pos in allPositions)
                                 {
@@ -139,7 +139,7 @@ else
                             </InputSelect>
                         </div>
                         <div class="mb-3 form-check">
-                            <InputCheckbox @bind-Value="stateEditModel.CanEdit" class="form-check-input" />
+                            <InputCheckbox @bind-Value="stateEditModel.CanEdit" class="form-check-input bg-dark text-white border-secondary" />
                             <label class="form-check-label">Разрешено редактирование документа на этом этапе</label>
                         </div>
                         @if (!string.IsNullOrEmpty(stateErrorMessage))
@@ -162,17 +162,17 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
+            <div class="modal-content bg-dark text-white">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingTransition == null ? "Новый переход" : "Редактирование перехода")</h5>
-                    <button type="button" class="btn-close" @onclick="CloseTransitionModal"></button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseTransitionModal"></button>
                 </div>
                 <EditForm Model="transitionEditModel" OnValidSubmit="SaveTransition">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Из состояния</label>
-                            <InputSelect @bind-Value="transitionEditModel.FromStateId" class="form-control">
+                            <InputSelect @bind-Value="transitionEditModel.FromStateId" class="form-control bg-dark text-white border-secondary">
                                 <option value="">— Выберите —</option>
                                 @foreach (var s in states)
                                 {
@@ -183,7 +183,7 @@ else
                         </div>
                         <div class="mb-3">
                             <label class="form-label">В состояние</label>
-                            <InputSelect @bind-Value="transitionEditModel.ToStateId" class="form-control">
+                            <InputSelect @bind-Value="transitionEditModel.ToStateId" class="form-control bg-dark text-white border-secondary">
                                 <option value="">— Выберите —</option>
                                 @foreach (var s in states)
                                 {
@@ -194,12 +194,12 @@ else
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Действие</label>
-                            <InputText @bind-Value="transitionEditModel.ActionName" class="form-control" />
+                            <InputText @bind-Value="transitionEditModel.ActionName" class="form-control bg-dark text-white border-secondary" />
                             <ValidationMessage For="() => transitionEditModel.ActionName" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Разрешённые должности (мультивыбор)</label>
-                            <select multiple class="form-control" size="5" @bind="transitionEditModel.SelectedPositionIds">
+                            <select multiple class="form-control bg-dark text-white border-secondary" size="5" @bind="transitionEditModel.SelectedPositionIds">
                                 @foreach (var pos in allPositions)
                                 {
                                     <option value="@pos.Id">@pos.Title (@pos.Department?.Name)</option>

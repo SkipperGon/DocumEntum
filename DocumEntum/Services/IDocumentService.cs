@@ -24,5 +24,6 @@ namespace DocumEntum.Services
         Task<List<Document>> GetDocumentsByDepartmentAsync(int departmentId, bool includeDeleted = false);
         Task UpdateDocumentFileAsync(int documentId, Stream newFileStream, string originalFileName, long fileSize, string contentType);
         Task<string?> GetLastCommentForDocumentAsync(int documentId);
+        Task<(Stream? FileStream, string ContentType, string FileName, string FileExtension)?> GetDocumentVersionFileAsync(int versionId);
     }
 }

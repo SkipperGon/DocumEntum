@@ -75,6 +75,20 @@ namespace DocumEntum.Services
 
             return documents;
         }
+
+        public async Task<(Stream? FileStream, string ContentType, string FileName, string FileExtension)?> GetDocumentVersionFileAsync(int versionId)
+        {
+            var version = await _dbContext.DocumentVersions.FindAsync(versionId);
+            if (version == null) return null;
+
+            // Проверяем наличие прав доступа к основному документу
+            var doc = await GetDocumentAsync(version.DocumentId);
+            if (doc == null) return null;
+
+            var stream = await _fileStorage.GetFileStreamAsync(version.StoredFileName);
+            if (stream == null) return null;
+            return (stream, version.ContentType, version.FileName, version.FileExtension);
+        }
         public async Task<Document> CreateDocumentAsync(string title, int workflowId, int authorId, int? departmentId,
             Dictionary<string, object> extraAttributes, Stream? fileStream, string? originalFileName, long fileSize, string? contentType)
         {

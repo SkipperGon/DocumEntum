@@ -26,7 +26,7 @@ else if (!string.IsNullOrEmpty(loadError))
 }
 else
 {
-    <table class="table table-striped">
+    <table class="table table-dark table-striped">
         <thead>
             <tr><th>Логин</th><th>Имя</th><th>Email</th><th>Роль</th><th>Отдел / Должность</th><th>Действия</th></tr>
         </thead>
@@ -65,31 +65,31 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
-            <div class="modal-content">
+            <div class="modal-content bg-dark text-white">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingUser == null ? "Новый пользователь" : "Редактирование")</h5>
-                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
                 </div>
                 <EditForm Model="editModel" OnValidSubmit="SaveUser" FormName="user-edit-form">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Логин</label>
-                            <InputText @bind-Value="editModel.UserName" class="form-control" />
+                            <InputText @bind-Value="editModel.UserName" class="form-control bg-dark text-white border-secondary" />
                             <ValidationMessage For="() => editModel.UserName" class="text-danger" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Email</label>
-                            <InputText @bind-Value="editModel.Email" class="form-control" />
+                            <InputText @bind-Value="editModel.Email" class="form-control bg-dark text-white border-secondary" />
                             <ValidationMessage For="() => editModel.Email" class="text-danger" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Пароль @(editingUser == null ? "" : "(оставьте пустым, чтобы не менять)")</label>
-                            <InputText type="password" @bind-Value="editModel.Password" class="form-control" />
+                            <InputText type="password" @bind-Value="editModel.Password" class="form-control bg-dark text-white border-secondary" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Роль</label>
-                            <InputSelect @bind-Value="editModel.SelectedRole" @bind-Value:after="OnRoleChanged" class="form-control">
+                            <InputSelect @bind-Value="editModel.SelectedRole" @bind-Value:after="OnRoleChanged" class="form-control bg-dark text-white border-secondary">
                                 <option value="">-- Выберите роль --</option>
                                 @foreach (var role in availableRoles)
                                 {
@@ -103,7 +103,7 @@ else
                         {
                             <div class="mb-3">
                                 <label class="form-label">Отдел</label>
-                                <InputSelect @bind-Value="editModel.DepartmentId" @bind-Value:after="OnDepartmentChanged" class="form-control">
+                                <InputSelect @bind-Value="editModel.DepartmentId" @bind-Value:after="OnDepartmentChanged" class="form-control bg-dark text-white border-secondary">
                                     <option value="">-- Выберите отдел --</option>
                                     @foreach (var dept in departments)
                                     {
@@ -113,7 +113,7 @@ else
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Должность (необязательно)</label>
-                                <InputSelect @bind-Value="editModel.PositionId" class="form-control">
+                                <InputSelect @bind-Value="editModel.PositionId" class="form-control bg-dark text-white border-secondary">
                                     <option value="">-- Не выбрана --</option>
                                     @foreach (var pos in availablePositions)
                                     {
@@ -123,7 +123,7 @@ else
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Полное имя сотрудника</label>
-                                <InputText @bind-Value="editModel.FullName" class="form-control" />
+                                <InputText @bind-Value="editModel.FullName" class="form-control bg-dark text-white border-secondary" />
                             </div>
                         }
 

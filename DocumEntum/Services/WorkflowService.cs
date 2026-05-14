@@ -44,7 +44,6 @@ namespace DocumEntum.Services
         }
         public async Task<List<WorkflowTransition>> GetAvailableTransitionsAsync(Document document, int employeeId)
         {
-            // админы не участвуют в workflow
             if (await _currentUserService.IsAdminAsync())
                 return new List<WorkflowTransition>();
 
@@ -53,38 +52,29 @@ namespace DocumEntum.Services
             if (currentState == null)
                 return new List<WorkflowTransition>();
 
-            // Проверка на право работать с этапом (требуемая должность)
-            if (currentState.RequiredPositionId != null)
-            {
-                var employeePositions = await _dbContext.EmployeePositions
-                    .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null && ep.PositionId != null)
-                    .Select(ep => ep.PositionId!.Value)
-                    .ToListAsync();
-
-                if (!employeePositions.Contains(currentState.RequiredPositionId.Value))
-                    return new List<WorkflowTransition>();
-            }
-
             var employeePositionIds = await _dbContext.EmployeePositions
                 .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null && ep.PositionId != null)
                 .Select(ep => ep.PositionId!.Value)
                 .ToListAsync();
 
-            // Загружаем все возможные переходы из текущего состояния
+            // Является ли текущий сотрудник владельцем данного этапа
+            bool isStateOwner = currentState.RequiredPositionId == null || employeePositionIds.Contains(currentState.RequiredPositionId.Value);
+
             var transitions = await _dbContext.WorkflowTransitions
                 .Include(t => t.ToState)
                 .Where(t => t.WorkflowId == document.WorkflowId && t.FromStateId == document.CurrentStateId)
                 .ToListAsync();
 
-            // Фильтруем только по должностям (AllowedRoles больше нет)
             var available = transitions.Where(t =>
             {
-                var positionsOk = string.IsNullOrEmpty(t.AllowedPositionIds) ||
-                                  t.AllowedPositionIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                      .Select(p => int.Parse(p.Trim()))
-                                      .Any(posId => employeePositionIds.Contains(posId));
-
-                return positionsOk;
+                // Если для перехода явно указаны должности, проверяем их (это переопределяет владение состоянием)
+                if (!string.IsNullOrEmpty(t.AllowedPositionIds))
+                {
+                    var allowedIds = t.AllowedPositionIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => int.Parse(p.Trim()));
+                    return allowedIds.Any(posId => employeePositionIds.Contains(posId));
+                }
+                // Иначе переход доступен только владельцу текущего состояния
+                return isStateOwner;
             }).ToList();
 
             return available;
@@ -307,13 +297,31 @@ namespace DocumEntum.Services
             if (state.IsFinal)
                 return false;
 
-            if (state.RequiredPositionId == null)
-                return !state.IsInitial;
+            var employeePositionIds = await _dbContext.EmployeePositions
+                .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null && ep.PositionId != null)
+                .Select(ep => ep.PositionId!.Value)
+                .ToListAsync();
 
-            return await _dbContext.EmployeePositions.AnyAsync(ep =>
-                ep.EmployeeId == employeeId
-                && ep.EndDate == null
-                && ep.PositionId == state.RequiredPositionId);
+            bool isStateOwner = state.RequiredPositionId == null ? !state.IsInitial : employeePositionIds.Contains(state.RequiredPositionId.Value);
+            if (isStateOwner)
+                return true;
+
+            // Если сотрудник не владелец состояния, проверяем, есть ли у него явно разрешённый переход
+            var transitions = await _dbContext.WorkflowTransitions
+                .Where(t => t.WorkflowId == document.WorkflowId && t.FromStateId == document.CurrentStateId)
+                .ToListAsync();
+
+            bool hasAllowedTransition = transitions.Any(t =>
+            {
+                if (!string.IsNullOrEmpty(t.AllowedPositionIds))
+                {
+                    var allowedIds = t.AllowedPositionIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => int.Parse(p.Trim()));
+                    return allowedIds.Any(posId => employeePositionIds.Contains(posId));
+                }
+                return false;
+            });
+
+            return hasAllowedTransition;
         }
 
         public async Task<List<WorkflowTransition>> GetAvailableTransitionsFromInitialStateAsync(int workflowId, int employeeId)

@@ -21,7 +21,7 @@ else
 
     @if (positions.Any())
     {
-        <table class="table table-striped table-bordered">
+        <table class="table table-striped table-bordered table-dark">
             <thead>
                 <tr>
                     <th>Название</th>
@@ -82,26 +82,26 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
-            <div class="modal-content">
+            <div class="modal-content bg-dark text-white">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingPosition == null ? "Новая должность" : "Редактирование должности")</h5>
-                    <button type="button" class="btn-close" @onclick="ClosePositionModal"></button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="ClosePositionModal"></button>
                 </div>
                 <EditForm Model="positionEditModel" OnValidSubmit="SavePosition">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Название</label>
-                            <InputText @bind-Value="positionEditModel.Title" class="form-control" />
+                            <InputText @bind-Value="positionEditModel.Title" class="form-control bg-dark text-white border-secondary" />
                             <ValidationMessage For="() => positionEditModel.Title" class="text-danger" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Описание</label>
-                            <InputText @bind-Value="positionEditModel.Description" class="form-control" />
+                            <InputText @bind-Value="positionEditModel.Description" class="form-control bg-dark text-white border-secondary" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Отдел</label>
-                            <InputSelect @bind-Value="positionEditModel.DepartmentId" class="form-control">
+                            <InputSelect @bind-Value="positionEditModel.DepartmentId" class="form-control bg-dark text-white border-secondary">
                                 <option value="">-- Выберите отдел --</option>
                                 @foreach (var dept in departments)
                                 {
@@ -130,15 +130,15 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
-            <div class="modal-content">
+            <div class="modal-content bg-dark text-white">
                 <div class="modal-header">
                     <h5 class="modal-title">Назначение сотрудника на должность: @selectedPosition?.Title</h5>
-                    <button type="button" class="btn-close" @onclick="CloseAssignModal"></button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseAssignModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Сотрудник</label>
-                        <InputSelect @bind-Value="selectedEmployeeId" class="form-control">
+                        <InputSelect @bind-Value="selectedEmployeeId" class="form-control bg-dark text-white border-secondary">
                             <option value="">-- Выберите сотрудника --</option>
                             @foreach (var emp in availableEmployees)
                             {
@@ -176,14 +176,13 @@ else
     // Модалка для назначения сотрудника
     private bool showAssignModal = false;
     private Position? selectedPosition = null;
-    private int selectedEmployeeId;
+    private int? selectedEmployeeId;
     private string? assignErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
     }
-
     private async Task LoadData()
     {
         try
@@ -281,15 +280,15 @@ else
     private void OpenAssignModal(Position pos)
     {
         selectedPosition = pos;
-        selectedEmployeeId = 0;
+        selectedEmployeeId = null;
         assignErrorMessage = null;
         showAssignModal = true;
     }
 
     private async Task AssignEmployee()
     {
-        if (selectedEmployeeId == 0)
-        {
+        if(selectedEmployeeId == null || selectedEmployeeId == 0)
+    {
             assignErrorMessage = "Выберите сотрудника.";
             return;
         }
@@ -297,7 +296,7 @@ else
 
         try
         {
-            await OrgService.AssignEmployeeToPositionAsync(selectedEmployeeId, selectedPosition.Id);
+            await OrgService.AssignEmployeeToPositionAsync(selectedEmployeeId.Value, selectedPosition.Id);
             await LoadData();
             CloseAssignModal();
         }
@@ -321,7 +320,7 @@ else
     {
         showAssignModal = false;
         selectedPosition = null;
-        selectedEmployeeId = 0;
+        selectedEmployeeId = null;
         assignErrorMessage = null;
     }
 
