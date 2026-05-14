@@ -76,7 +76,10 @@ else
                             {
                                 <a class="btn btn-sm btn-outline-primary me-1" href="@($"/api/documents/{doc.Id}/download")" target="_blank">Скачать</a>
                             }
-                            <button class="btn btn-sm btn-primary" @onclick="() => OpenManageModal(doc)">Открыть</button>
+                            @if (!isAdmin)
+                            {
+                                <button class="btn btn-sm btn-primary" @onclick="() => OpenManageModal(doc)">Открыть</button>
+                            }
                         </td>
                     </tr>
                 }
@@ -290,6 +293,7 @@ else
     private string? loadError;
     private List<Document> documents = new();
     private Employee? currentEmployee;
+    private bool isAdmin = false;
     
     private bool showStartModal;
     private int startModalStep = 1;
@@ -320,6 +324,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         currentEmployee = await CurrentUserService.GetCurrentEmployeeAsync();
+        isAdmin = await CurrentUserService.IsAdminAsync();
         await ReloadDocumentsAsync();
     }
 

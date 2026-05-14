@@ -7,6 +7,7 @@
 @inject IDocumentService DocumentService
 @inject IWorkflowService WorkflowService
 @inject ICurrentUserService CurrentUserService
+@inject IDocumentTypeService DocumentTypeService
 @inject NavigationManager NavigationManager
 
 <PageTitle>Утверждённые документы</PageTitle>
@@ -18,6 +19,39 @@
     <a href="Workflows">раздел «Процессы»</a>.
 </p>
 
+<!--фильтрация и сортировка-->
+<div class="card bg-dark text-white border-secondary mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Тип документа</label>
+                <select class="form-select bg-dark text-white border-secondary" @bind="selectedDocumentTypeId">
+                    <option value="0">Все типы</option>
+                    @foreach (var dt in documentTypes)
+                    {
+                        <option value="@dt.Id">@dt.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Название документа</label>
+                <input type="text" class="form-control bg-dark text-white border-secondary" @bind="searchTitle" placeholder="Поиск по названию..." />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Сортировка</label>
+                <select class="form-select bg-dark text-white border-secondary" @bind="selectedSortOption">
+                    <option value="@SortOption.TitleAsc">Название (А→Я)</option>
+                    <option value="@SortOption.TitleDesc">Название (Я→А)</option>
+                    <option value="@SortOption.CreatedDesc">Создано (сначала новые)</option>
+                    <option value="@SortOption.CreatedAsc">Создано (сначала старые)</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" @onclick="ResetFilters">Сбросить фильтры</button>
+            </div>
+        </div>
+    </div>
+</div>
 @if (loadError != null)
 {
     <div class="alert alert-danger">@loadError</div>
@@ -45,13 +79,14 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var doc in documents)
+                @foreach (var doc in sortedDocuments)
                 {
                     <tr>
                         <td>@doc.Title</td>
                         <td>@doc.DocumentType?.Name</td>
                         <td>@doc.Author?.FullName</td>
                         <td>@doc.ApprovedVersion</td>
+                        <td>@doc.CreatedAt.ToLocalTime().ToString("g")</td>
                         <td class="text-end">
                             @if (!string.IsNullOrEmpty(doc.StoredFileName))
                             {
@@ -71,6 +106,7 @@ else
             </tbody>
         </table>
     </div>
+    <div class="text-muted mt-2 small">Показано @filteredDocuments.Count из @documents.Count записей</div>
     @* мадал.окно *@
     @if (showUpdateModal && docToUpdate != null)
     {
@@ -162,6 +198,14 @@ else
 }
 
 @code {
+
+    private enum SortOption
+    {
+        TitleAsc,
+        TitleDesc,
+        CreatedAsc,
+        CreatedDesc
+    }
     private bool isLoading = true;
     private string? loadError;
     private List<Document> documents = new();
@@ -176,6 +220,10 @@ else
     private Document? docForVersions;
     private List<DocumentVersion> documentVersions = new();
     private bool isLoadingVersions;
+    private List<DocumentType> documentTypes = new();
+    private int selectedDocumentTypeId = 0;
+    private string searchTitle = "";
+    private SortOption selectedSortOption = SortOption.CreatedDesc;
 
     protected override async Task OnInitializedAsync()
     {
@@ -183,6 +231,7 @@ else
         {
             currentEmployee = await CurrentUserService.GetCurrentEmployeeAsync();
             documents = await DocumentService.GetApprovedDocumentsAsync();
+            documentTypes = await DocumentTypeService.GetAllAsync();
         }
         catch (Exception ex)
         {
@@ -191,6 +240,27 @@ else
         finally
         {
             isLoading = false;
+        }
+    }
+    private void ResetFilters()
+    {
+        selectedDocumentTypeId = 0;
+        searchTitle = "";
+        selectedSortOption = SortOption.CreatedDesc;
+    }
+    private List<Document> sortedDocuments
+    {
+        get
+        {
+            var filtered = filteredDocuments;
+            return selectedSortOption switch
+            {
+                SortOption.TitleAsc => filtered.OrderBy(d => d.Title).ToList(),
+                SortOption.TitleDesc => filtered.OrderByDescending(d => d.Title).ToList(),
+                SortOption.CreatedAsc => filtered.OrderBy(d => d.CreatedAt).ToList(),
+                SortOption.CreatedDesc => filtered.OrderByDescending(d => d.CreatedAt).ToList(),
+                _ => filtered
+            };
         }
     }
     private async Task OpenVersionsModal(Document doc)
@@ -231,6 +301,10 @@ else
             loadError = $"Ошибка загрузки процессов: {ex.Message}";
         }
     }
+    private List<Document> filteredDocuments => documents
+    .Where(d => selectedDocumentTypeId == 0 || d.DocumentTypeId == selectedDocumentTypeId)
+    .Where(d => string.IsNullOrWhiteSpace(searchTitle) || d.Title.Contains(searchTitle, StringComparison.OrdinalIgnoreCase))
+    .ToList();
     private void CloseVersionsModal()
     {
         showVersionsModal = false;
