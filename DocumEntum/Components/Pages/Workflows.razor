@@ -125,11 +125,10 @@ else
                                     <ValidationMessage For="() => startModel.WorkflowId" />
                                 </div>
 
-                                
-                                    var selectedWf = startableWorkflows.FirstOrDefault(w => w.Id == startModel.WorkflowId);
-                                    var initialSt = selectedWf?.States.FirstOrDefault(s => s.IsInitial);
-                                    bool canEditOnStart = initialSt?.CanEdit ?? false;
-                                
+                                var selectedWf = startableWorkflows.FirstOrDefault(w => w.Id == startModel.WorkflowId);
+                                var initialSt = selectedWf?.States.FirstOrDefault(s => s.IsInitial);
+                                bool canEditOnStart = initialSt?.CanEdit ?? false;
+
 
                                 <div class="mb-3">
                                     <label class="form-label">Название документа</label>
@@ -157,6 +156,11 @@ else
                                         </div>
                                     }
                                 }
+
+                                <div class="mb-3">
+                                    <label class="form-label">Комментарий (необязательно)</label>
+                                    <textarea class="form-control bg-dark text-white border-secondary" @bind="startComment" rows="2" placeholder="Оставьте комментарий к первому действию..."></textarea>
+                                </div>
                             }
                         </div>
                         <div class="modal-footer">
@@ -320,6 +324,7 @@ else
     private bool manageSubmitting;
     private string? transitionComment;
     private string? lastComment;
+    private string? startComment;
 
     protected override async Task OnInitializedAsync()
     {
@@ -346,7 +351,6 @@ else
         }
     }
 
-    // ========== Создание процесса ==========
     
     private async Task OpenStartModal()
     {
@@ -368,6 +372,7 @@ else
         pendingFirstTransitions = new();
         transitionApplying = false;
         transitionApplyError = null;
+        startComment = null;
     }
 
     private async Task CancelStartWizard()
@@ -469,7 +474,7 @@ else
             var doc = await DocumentService.GetDocumentAsync(createdDocumentId.Value);
             if (doc == null) { transitionApplyError = "Документ не найден."; return; }
 
-            var ok = await WorkflowService.ExecuteTransitionAsync(doc, actionName, currentEmployee.Id);
+            var ok = await WorkflowService.ExecuteTransitionAsync(doc, actionName, currentEmployee.Id, startComment);
             if (!ok) { transitionApplyError = "Не удалось выполнить переход."; return; }
 
             showStartModal = false;
