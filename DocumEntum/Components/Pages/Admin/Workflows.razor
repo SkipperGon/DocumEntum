@@ -20,7 +20,7 @@ else
 {
     <div class="mb-3">
         <label class="form-label">Фильтр по типу документа</label>
-        <select class="form-select w-25 " value="@selectedDocumentTypeId" @onchange="OnDocumentTypeFilterChanged">
+        <select class="form-select w-25 bg-dark text-white border-secondary" value="@selectedDocumentTypeId" @onchange="OnDocumentTypeFilterChanged">
             <option value="0">Все типы</option>
             @foreach (var dt in documentTypes)
             {

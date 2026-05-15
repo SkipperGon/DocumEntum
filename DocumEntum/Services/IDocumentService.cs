@@ -14,7 +14,8 @@ namespace DocumEntum.Services
         Task UpdateExtraAttributesAsync(int id, Dictionary<string, object> extraAttributes);
         Task DeleteDocumentAsync(int id);
         Task<List<Document>> GetAccessibleDocumentsAsync();
-        Task<List<Document>> GetApprovedDocumentsAsync();
+        Task<List<Document>> GetApprovedDocumentsAsync(bool includeDeleted = false);
+        Task RestoreDocumentAsync(int id);
         Task<List<Document>> GetWorkflowDocumentsAsync();
         Task<List<DocumentHistory>> GetDocumentHistoryAsync(int documentId);
         Task<List<DocumentVersion>> GetApprovedDocumentVersionsAsync(int approvedDocumentId);

@@ -376,6 +376,7 @@ else
         availablePositions = await OrgService.GetPositionsByDepartmentAsync(departmentId);
     }
 
+
     private async Task SaveUser()
     {
         errorMessage = null;
@@ -404,20 +405,15 @@ else
             return;
         }
 
-        // Для Employee не требуется обязательный выбор должности или отдела.
-        // Отдел нужен только для фильтрации списка должностей, но не обязателен для сохранения.
-        // Если должность не выбрана (PositionId == null) – это допустимо.
-
         try
         {
             if (editingUser == null)
             {
-                // Создание нового пользователя
                 var newUser = new ApplicationUser
-                {
-                    UserName = editModel.UserName,
-                    Email = string.IsNullOrEmpty(editModel.Email) ? null : editModel.Email
-                };
+                    {
+                        UserName = editModel.UserName,
+                        Email = string.IsNullOrEmpty(editModel.Email) ? null : editModel.Email
+                    };
 
                 var createResult = await UserManager.CreateAsync(newUser, editModel.Password);
                 if (!createResult.Succeeded)
@@ -437,26 +433,25 @@ else
                 if (editModel.SelectedRole == "Employee")
                 {
                     var employee = new Employee
-                    {
-                        UserId = newUser.Id,
-                        FullName = editModel.FullName ?? editModel.UserName,
-                        Email = newUser.Email
-                    };
+                        {
+                            UserId = newUser.Id,
+                            FullName = editModel.FullName ?? editModel.UserName,
+                            Email = newUser.Email
+                        };
                     DbContext.Employees.Add(employee);
                     await DbContext.SaveChangesAsync();
-                    // PositionId может быть null
                     await OrgService.AssignEmployeeToPositionAsync(employee.Id, editModel.PositionId);
                 }
             }
             else
             {
-                // Редактирование существующего
                 if (await IsSuperAdmin(editingUser))
                 {
                     errorMessage = "Редактирование главного администратора запрещено";
                     return;
                 }
 
+                // 1. Обновляем основные поля пользователя
                 editingUser.UserName = editModel.UserName;
                 editingUser.Email = string.IsNullOrEmpty(editModel.Email) ? null : editModel.Email;
                 var updateResult = await UserManager.UpdateAsync(editingUser);
@@ -466,6 +461,7 @@ else
                     return;
                 }
 
+                // 2. Обновляем пароль, если указан
                 if (!string.IsNullOrWhiteSpace(editModel.Password))
                 {
                     if (await UserManager.HasPasswordAsync(editingUser))
@@ -478,6 +474,7 @@ else
                     }
                 }
 
+                // 3. Обновляем роль, если изменилась
                 var currentRoles = await UserManager.GetRolesAsync(editingUser);
                 if (currentRoles.FirstOrDefault() != editModel.SelectedRole)
                 {
@@ -486,48 +483,46 @@ else
                     await UserManager.AddToRoleAsync(editingUser, editModel.SelectedRole);
                 }
 
+                // 4. Работа с Employee и должностью
                 var existingEmployee = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == editingUser.Id);
+
                 if (editModel.SelectedRole == "Employee")
                 {
+                    // Создаём или обновляем запись Employee
                     if (existingEmployee == null)
                     {
                         existingEmployee = new Employee
-                        {
-                            UserId = editingUser.Id,
-                            FullName = editModel.FullName ?? editingUser.UserName,
-                            Email = editingUser.Email
-                        };
+                            {
+                                UserId = editingUser.Id,
+                                FullName = editModel.FullName ?? editingUser.UserName,
+                                Email = editingUser.Email
+                            };
                         DbContext.Employees.Add(existingEmployee);
-                        await DbContext.SaveChangesAsync();
+                        await DbContext.SaveChangesAsync(); // получаем Id
                     }
                     else
                     {
                         existingEmployee.FullName = editModel.FullName ?? existingEmployee.FullName;
                         existingEmployee.Email = editingUser.Email;
-                        existingEmployee.IsActive = true;
                         await DbContext.SaveChangesAsync();
                     }
 
-                    var currentPosition = await DbContext.EmployeePositions
-                        .FirstOrDefaultAsync(ep => ep.EmployeeId == existingEmployee.Id && ep.EndDate == null);
-
-                    if (currentPosition == null)
-                    {
-                        // PositionId может быть null
-                        await OrgService.AssignEmployeeToPositionAsync(existingEmployee.Id, editModel.PositionId);
-                    }
-                    else if (currentPosition.PositionId != editModel.PositionId)
-                    {
-                        currentPosition.EndDate = DateTime.UtcNow;
-                        await OrgService.AssignEmployeeToPositionAsync(existingEmployee.Id, editModel.PositionId);
-                    }
+                    // Сервис сам закроет старую должность если отличается
+                    // Ничего не сделает если должность осталась прежней
+                    await OrgService.AssignEmployeeToPositionAsync(existingEmployee.Id, editModel.PositionId);
                 }
-                else if (existingEmployee != null)
+                else
                 {
-                    var positions = await DbContext.EmployeePositions.Where(ep => ep.EmployeeId == existingEmployee.Id).ToListAsync();
-                    DbContext.EmployeePositions.RemoveRange(positions);
-                    DbContext.Employees.Remove(existingEmployee);
-                    await DbContext.SaveChangesAsync();
+                    // Если роль изменилась с Employee на другую — удаляем Employee и все его назначения
+                    if (existingEmployee != null)
+                    {
+                        var positions = await DbContext.EmployeePositions
+                            .Where(ep => ep.EmployeeId == existingEmployee.Id)
+                            .ToListAsync();
+                        DbContext.EmployeePositions.RemoveRange(positions);
+                        DbContext.Employees.Remove(existingEmployee);
+                        await DbContext.SaveChangesAsync();
+                    }
                 }
             }
 

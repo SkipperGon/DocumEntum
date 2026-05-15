@@ -362,9 +362,6 @@ namespace DocumEntum.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -401,7 +398,8 @@ namespace DocumEntum.Migrations
                     b.HasIndex("PositionId");
 
                     b.HasIndex("EmployeeId", "PositionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"EndDate\" IS NULL");
 
                     b.ToTable("EmployeePositions");
                 });

@@ -244,17 +244,23 @@ namespace DocumEntum.Services
 
             await _dbContext.SaveChangesAsync();
         }
-        public async Task<List<Document>> GetApprovedDocumentsAsync()
+        public async Task<List<Document>> GetApprovedDocumentsAsync(bool includeDeleted = false)
         {
             if (await _currentUserService.IsAdminAsync())
             {
-                return await _dbContext.Documents
+                var query = _dbContext.Documents
                     .Include(d => d.CurrentState)
                     .Include(d => d.DocumentType)
                     .Include(d => d.Author)
-                    .Where(d => d.CurrentState.IsFinal && !d.IsDeleted && d.ReplacesDocumentId == null)
-                    .OrderByDescending(d => d.CreatedAt)
-                    .ToListAsync();
+                    .Where(d => d.CurrentState.IsFinal && d.ReplacesDocumentId == null);
+
+                // Если не запрошены удаленные, скрываем их
+                if (!includeDeleted)
+                {
+                    query = query.Where(d => !d.IsDeleted);
+                }
+
+                return await query.OrderByDescending(d => d.CreatedAt).ToListAsync();
             }
 
             var employee = await _currentUserService.GetCurrentEmployeeAsync();
@@ -262,23 +268,33 @@ namespace DocumEntum.Services
 
             var userDeptId = await _currentUserService.GetDepartmentIdAsync();
 
-            var query = _dbContext.Documents
+            var queryEmp = _dbContext.Documents
                 .Include(d => d.CurrentState)
                 .Include(d => d.DocumentType)
                 .Include(d => d.Author)
-                .Where(d => d.CurrentState.IsFinal && !d.IsDeleted && d.ReplacesDocumentId == null);
+                .Where(d => d.CurrentState.IsFinal && !d.IsDeleted && d.ReplacesDocumentId == null); // Сотрудники никогда не видят удаленные
 
             if (userDeptId.HasValue)
-                query = query.Where(d => d.AuthorId == employee.Id ||
+                queryEmp = queryEmp.Where(d => d.AuthorId == employee.Id ||
                     d.DocumentType.AvailableDepartments.Any(dept => dept.Id == userDeptId.Value));
             else
-                query = query.Where(d => d.AuthorId == employee.Id);
+                queryEmp = queryEmp.Where(d => d.AuthorId == employee.Id);
 
-            return await query
-                .OrderByDescending(d => d.CreatedAt)
-                .ToListAsync();
+            return await queryEmp.OrderByDescending(d => d.CreatedAt).ToListAsync();
         }
+        public async Task RestoreDocumentAsync(int id)
+        {
+            if (!await _currentUserService.IsAdminAsync())
+                throw new UnauthorizedAccessException("Только администратор может восстанавливать документы.");
 
+            var doc = await _dbContext.Documents.FindAsync(id);
+            if (doc != null && doc.IsDeleted)
+            {
+                doc.IsDeleted = false;
+                doc.UpdatedAt = DateTime.UtcNow;
+                await _dbContext.SaveChangesAsync();
+            }
+        }
         public async Task<List<DocumentVersion>> GetApprovedDocumentVersionsAsync(int approvedDocumentId)
         {
             var doc = await GetDocumentAsync(approvedDocumentId);

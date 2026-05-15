@@ -198,26 +198,35 @@ namespace DocumEntum.Services
             if (employee == null)
                 throw new InvalidOperationException("Сотрудник не найден.");
 
-            // Проверка: есть ли у сотрудника уже активная должность
-            var hasActivePosition = await _dbContext.EmployeePositions
-                .AnyAsync(ep => ep.EmployeeId == employeeId && ep.EndDate == null);
-            if (hasActivePosition)
-                throw new InvalidOperationException("Сотрудник уже занимает другую должность. Сначала освободите его текущую должность.");
-
-            if (positionId.HasValue)
+            // Если должность не указана — просто закрываем все активные назначения
+            if (!positionId.HasValue)
             {
-                var position = await _dbContext.Positions.FindAsync(positionId.Value);
-                if (position == null)
-                    throw new InvalidOperationException("Должность не найдена.");
+                var active = await _dbContext.EmployeePositions
+                    .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null)
+                    .ToListAsync();
+                foreach (var a in active)
+                    a.EndDate = DateTime.UtcNow;
+                await _dbContext.SaveChangesAsync();
+                return;
             }
 
-            // Проверка дублирования на эту же должность (оставляем)
-            var existing = await _dbContext.EmployeePositions
-                .FirstOrDefaultAsync(ep => ep.EmployeeId == employeeId &&
-                                           ep.PositionId == positionId &&
-                                           ep.EndDate == null);
-            if (existing != null)
-                throw new InvalidOperationException("Сотрудник уже имеет активное назначение на эту же должность.");
+            // Проверяем, не назначен ли уже сотрудник на эту должность активно
+            var already = await _dbContext.EmployeePositions
+                .AnyAsync(ep => ep.EmployeeId == employeeId && ep.PositionId == positionId && ep.EndDate == null);
+            if (already)
+                return; // уже занимает эту должность
+
+            // Закрываем текущие активные назначения
+            var currentActive = await _dbContext.EmployeePositions
+                .Where(ep => ep.EmployeeId == employeeId && ep.EndDate == null)
+                .ToListAsync();
+            foreach (var active in currentActive)
+                active.EndDate = DateTime.UtcNow;
+
+            // Создаём новое назначение
+            var position = await _dbContext.Positions.FindAsync(positionId.Value);
+            if (position == null)
+                throw new InvalidOperationException("Должность не найдена.");
 
             var employeePosition = new EmployeePosition
             {

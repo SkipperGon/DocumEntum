@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     /// <inheritdoc />
-    public partial class UpUserBroked : Migration
+    public partial class MDfytd : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -205,8 +205,7 @@ namespace DocumEntum.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     UserId = table.Column<string>(type: "text", nullable: false),
                     FullName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false)
+                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -618,7 +617,8 @@ namespace DocumEntum.Migrations
                 name: "IX_EmployeePositions_EmployeeId_PositionId",
                 table: "EmployeePositions",
                 columns: new[] { "EmployeeId", "PositionId" },
-                unique: true);
+                unique: true,
+                filter: "\"EndDate\" IS NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmployeePositions_PositionId",

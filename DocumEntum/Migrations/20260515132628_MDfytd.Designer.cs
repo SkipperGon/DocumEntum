@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260515054037_UpUserBroked")]
-    partial class UpUserBroked
+    [Migration("20260515132628_MDfytd")]
+    partial class MDfytd
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -365,9 +365,6 @@ namespace DocumEntum.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -404,7 +401,8 @@ namespace DocumEntum.Migrations
                     b.HasIndex("PositionId");
 
                     b.HasIndex("EmployeeId", "PositionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"EndDate\" IS NULL");
 
                     b.ToTable("EmployeePositions");
                 });

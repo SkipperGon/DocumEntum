@@ -100,7 +100,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
          .OnDelete(DeleteBehavior.Restrict);
 
             //сотрудник не занимает одну и ту же должность
-            entity.HasIndex(ep => new { ep.EmployeeId, ep.PositionId }).IsUnique();
+            entity.HasIndex(ep => new { ep.EmployeeId, ep.PositionId }).IsUnique().HasFilter("\"EndDate\" IS NULL");
 
         });
 

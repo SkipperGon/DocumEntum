@@ -21,7 +21,5 @@ namespace DocumEntum.Data
         public string FullName { get; set; } = string.Empty;
 
         public string? Email { get; set; }
-        /// <summary>Активен ли сотрудник (позволяет мягко блокировать доступ).</summary>
-        public bool IsActive { get; set; } = true;
     }
 }
