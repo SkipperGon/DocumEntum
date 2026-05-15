@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace DocumEntum
 {
@@ -36,6 +35,9 @@ namespace DocumEntum
             builder.Services.AddScoped<IDocumentService, DocumentService>();
             builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 
+            // Регистрируем сервис здоровья БД (singleton)
+            builder.Services.AddSingleton<IDatabaseHealthService, DatabaseHealthService>();
+
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultScheme = IdentityConstants.ApplicationScheme;
@@ -43,9 +45,10 @@ namespace DocumEntum
             })
                 .AddIdentityCookies();
 
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseNpgsql(connectionString)); // Changed from UseSqlServer to UseNpgsql
+                options.UseNpgsql(connectionString));
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
             builder.Services.AddIdentityCore<ApplicationUser>(options =>
@@ -55,12 +58,11 @@ namespace DocumEntum
                 options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
             })
                 .AddRoles<IdentityRole>()
-.AddEntityFrameworkStores<ApplicationDbContext>()
-.AddSignInManager()
-.AddDefaultTokenProviders();
+                .AddEntityFrameworkStores<ApplicationDbContext>()
+                .AddSignInManager()
+                .AddDefaultTokenProviders();
 
             builder.Services.AddScoped<CustomCookieAuthenticationEvents>();
-            // Переопределяем события аутентификации для схемы Identity.Application
             builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme, options =>
             {
                 options.EventsType = typeof(CustomCookieAuthenticationEvents);
@@ -74,15 +76,78 @@ namespace DocumEntum
             else
             {
                 app.UseExceptionHandler("/Error");
-                // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
 
             app.UseHttpsRedirection();
-
             app.UseStaticFiles();
             app.UseAntiforgery();
 
+            // ----- Инициализация БД с обработкой ошибок -----
+            using (var scope = app.Services.CreateScope())
+            {
+                var healthService = scope.ServiceProvider.GetRequiredService<IDatabaseHealthService>();
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+                try
+                {
+                    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+                    string[] roles = { "Admin", "SuperAdmin", "Employee" };
+                    foreach (var role in roles)
+                        if (!await roleManager.RoleExistsAsync(role))
+                            await roleManager.CreateAsync(new IdentityRole(role));
+
+                    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                    var superAdminStatus = scope.ServiceProvider.GetRequiredService<SuperAdminStatusService>();
+                    var superAdmins = await userManager.GetUsersInRoleAsync("SuperAdmin");
+                    superAdminStatus.HasSuperAdmin = superAdmins.Any();
+
+                    if (superAdminStatus.HasSuperAdmin)
+                    {
+
+                        lock (Console.Out)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("\n------------------------------------------------");
+                            Console.WriteLine("[INFO] Главный администратор найден в БД при запуске");
+                            Console.WriteLine("------------------------------------------------\n");
+                        }
+                    }
+                    else
+                    {
+                        lock (Console.Out)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine("\n------------------------------------------------");
+                            Console.WriteLine("[WARN] Главный администратор не найден в БД при запуске");
+                            Console.WriteLine("При первом входе потребуется создание по /Account/SetupSuperAdmin");
+                            Console.WriteLine("------------------------------------------------\n");
+                            Console.ResetColor();
+                        }
+                    }
+                    // Всё успешно
+                    healthService.MarkHealthy();
+                    logger.LogInformation("Database initialized successfully.");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogCritical(ex, "Failed to initialize database. Application will run in degraded mode.");
+                    healthService.MarkUnhealthy(ex.Message);
+                    lock (Console.Out)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("\n------------------------------------------------");
+                        Console.WriteLine("[ERROR] Сервер PostgreSQL/PostgresPro недоступен");
+                        Console.WriteLine("Рекомендуется устранить проблему и перезапустить приложение");
+                        Console.WriteLine("------------------------------------------------\n");
+                        Console.ResetColor();
+                    }
+                }
+            }
+
+            // Middleware проверки здоровья БД
+            app.UseMiddleware<DatabaseHealthMiddleware>();
+            // Middleware проверки наличия SuperAdmin при первом запуске
             app.UseMiddleware<SuperAdminSetupMiddleware>();
 
             app.MapRazorComponents<App>()
@@ -104,43 +169,13 @@ namespace DocumEntum
                 return Results.File(stream, contentType, fileName);
             }).RequireAuthorization();
 
-            // Add additional endpoints required by the Identity /Account Razor components.
+            // Health-check endpoint для внешнего мониторинга
+            app.MapGet("/health", (IDatabaseHealthService health) =>
+                health.IsHealthy ? Results.Ok("Healthy") : Results.StatusCode(503));
+
             app.MapAdditionalIdentityEndpoints();
-            //создаём роли
-            using (var scope = app.Services.CreateScope())
-            {
-                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-                string[] roles = { "Admin", "SuperAdmin", "Employee" };
-                foreach (var role in roles)
-                    if (!await roleManager.RoleExistsAsync(role))
-                        await roleManager.CreateAsync(new IdentityRole(role));
-
-                //при запуске проверка наличия суперадмина в БД
-                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-                var superAdminStatus = scope.ServiceProvider.GetRequiredService<SuperAdminStatusService>();
-                var superAdmins = await userManager.GetUsersInRoleAsync("SuperAdmin");
-                superAdminStatus.HasSuperAdmin = superAdmins.Any();
-
-                if (superAdminStatus.HasSuperAdmin)
-                {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("\n------------------------------------------------");
-                    Console.WriteLine("[INFO] Главный администратор найден в БД при запуске");
-                    Console.WriteLine("------------------------------------------------\n");
-                }
-                else
-                {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine("\n------------------------------------------------");
-                    Console.WriteLine("[WARN] Главный администратор не найден в БД при запуске");
-                    Console.WriteLine("При первом входе потребуется создание по /Account/SetupSuperAdmin");
-                    Console.WriteLine("------------------------------------------------\n");
-                    Console.ResetColor();
-                }
-            }
 
             app.Run();
         }
-
     }
 }

@@ -1,0 +1,24 @@
+﻿@page "/DBError"
+@using DocumEntum.Services
+@inject IDatabaseHealthService HealthService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Ошибка подключения к базе данных</PageTitle>
+
+<div class="alert alert-danger">
+    <h3>База данных недоступна</h3>
+    <p>Приложение не может подключиться к базе данных. Пожалуйста, обратитесь к администратору.</p>
+    @if (!string.IsNullOrEmpty(HealthService.LastErrorMessage))
+    {
+        <details>
+            <summary>Техническая информация</summary>
+            <pre>@HealthService.LastErrorMessage</pre>
+        </details>
+    }
+    <hr />
+    <button class="btn btn-primary" @onclick="Reload">Повторить попытку</button>
+</div>
+
+@code {
+    private void Reload() => NavigationManager.Refresh(forceReload: true);
+}
