@@ -27,7 +27,7 @@ namespace DocumEntum.Data
         // MIME-тип
         public string ContentType { get; set; } = string.Empty;     
 
-        /// <summary>автор (сотрудника)</summary>
+        // автор
         public int AuthorId { get; set; }
         public virtual Employee Author { get; set; } = null!;
         /// <summary>текущее состояния workflow</summary>
@@ -62,9 +62,10 @@ namespace DocumEntum.Data
         public bool IsDeleted { get; set; }
 
         /// <summary>
-        /// Динамические атрибуты документа в формате JSONB.
-        /// Позволяет хранить произвольную структуру полей (например, «Сумма», «СНИЛС», «Номер договора»).
-        /// </summary>
+        /// Динамические атрибуты документа в формате JSONB
+        /// Позволяет хранить произвольную структуру полей
+        /// В дааной реализации не используется (предусмотренно как возможность модификации без изменения структуры БД)
+        /// </summary> 
         [Column(TypeName = "jsonb")]
         public Dictionary<string, object> ExtraAttributes { get; set; } = new();
         /// <summary>Дата создания документа.</summary>
