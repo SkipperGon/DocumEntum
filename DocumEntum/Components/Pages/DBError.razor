@@ -15,10 +15,7 @@
             <pre>@HealthService.LastErrorMessage</pre>
         </details>
     }
-    <hr />
-    <button class="btn btn-primary" @onclick="Reload">Повторить попытку</button>
 </div>
 
 @code {
-    private void Reload() => NavigationManager.Refresh(forceReload: true);
 }

@@ -147,8 +147,6 @@ namespace DocumEntum
 
             // Middleware проверки здоровья БД
             app.UseMiddleware<DatabaseHealthMiddleware>();
-            // Middleware проверки наличия SuperAdmin при первом запуске
-            app.UseMiddleware<SuperAdminSetupMiddleware>();
 
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();
