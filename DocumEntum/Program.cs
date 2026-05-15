@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Npgsql.EntityFrameworkCore.PostgreSQL; // Add this line
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace DocumEntum
 {
@@ -37,10 +37,10 @@ namespace DocumEntum
             builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 
             builder.Services.AddAuthentication(options =>
-                {
-                    options.DefaultScheme = IdentityConstants.ApplicationScheme;
-                    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-                })
+            {
+                options.DefaultScheme = IdentityConstants.ApplicationScheme;
+                options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+            })
                 .AddIdentityCookies();
 
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -70,7 +70,7 @@ namespace DocumEntum
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
-            {}
+            { }
             else
             {
                 app.UseExceptionHandler("/Error");
@@ -141,6 +141,6 @@ namespace DocumEntum
 
             app.Run();
         }
-        
+
     }
 }

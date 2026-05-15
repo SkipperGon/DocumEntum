@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260513114102_fk68")]
-    partial class fk68
+    [Migration("20260515054037_UpUserBroked")]
+    partial class UpUserBroked
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -58,6 +58,9 @@ namespace DocumEntum.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsBlocked")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("LockoutEnabled")

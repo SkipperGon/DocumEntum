@@ -9,6 +9,7 @@
 @inject ILogger<Login> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Вход в систему</PageTitle>
 
@@ -68,6 +69,12 @@
 
     public async Task LoginUser()
     {
+        var user = await UserManager.FindByNameAsync(Input.Login);
+        if (user != null && user.IsBlocked)
+        {
+            errorMessage = "Данный пользователь заблокирован. Для разблокировки обратитесь к администратору";
+            return;
+        }
         var result = await SignInManager.PasswordSignInAsync(Input.Login, Input.Password, Input.RememberMe, lockoutOnFailure: false);
         if (result.Succeeded)
         {

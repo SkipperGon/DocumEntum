@@ -33,7 +33,8 @@ public class CustomCookieAuthenticationEvents : CookieAuthenticationEvents
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = await userManager.FindByIdAsync(userId);
 
-            if (user == null) // пользователь удалён из БД
+            // Если пользователь удалён из БД или заблокирован
+            if (user == null || user.IsBlocked)
             {
                 context.RejectPrincipal();
                 await context.HttpContext.SignOutAsync();

@@ -28,7 +28,7 @@ else
 {
     <table class="table table-dark table-striped">
         <thead>
-            <tr><th>Логин</th><th>Имя</th><th>Email</th><th>Роль</th><th>Отдел / Должность</th><th>Действия</th></tr>
+            <tr><th>Логин</th><th>Имя</th><th>Email</th><th>Роль</th><th>Отдел / Должность</th><th>Статус</th><th>Действия</th></tr>
         </thead>
         <tbody>
             @foreach (var vm in userViewModels)
@@ -50,6 +50,24 @@ else
                         }
                     </td>
                     <td>
+                        @if (vm.IsBlocked)
+                        {
+                            <span class="badge bg-danger">Заблокирован</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Активен</span>
+                        }
+                    </td>
+                    <td>
+                        @if (vm.IsBlocked)
+                        {
+                            <button class="btn btn-sm btn-success me-1" @onclick="() => ToggleBlockUser(vm.User, false)">Разблокировать</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-warning me-1" @onclick="() => ToggleBlockUser(vm.User, true)">Заблокировать</button>
+                        }
                         <button class="btn btn-sm btn-primary" @onclick="() => EditUserAsync(vm.User)">Править</button>
                         <button class="btn btn-sm btn-danger" @onclick="() => DeleteUser(vm.User)">Удалить</button>
                     </td>
@@ -164,6 +182,7 @@ else
         public string? DepartmentName { get; set; }
         public string? PositionName { get; set; }
         public string? FullName { get; set; }
+        public bool IsBlocked { get; set; }
     }
 
     protected override async Task OnInitializedAsync()
@@ -227,11 +246,43 @@ else
                 Role = role,
                 DepartmentName = pos?.Position?.Department?.Name,
                 PositionName = pos?.Position?.Title,
-                FullName = pos?.Employee?.FullName
+                FullName = pos?.Employee?.FullName,
+                IsBlocked = user.IsBlocked
             };
         }).ToList();
     }
+    private async Task ToggleBlockUser(ApplicationUser user, bool block)
+    {
+        try
+        {
+            if (await IsSuperAdmin(user))
+            {
+                errorMessage = "Блокировка главного администратора запрещена.";
+                return;
+            }
 
+            var actionText = block ? "заблокировать" : "разблокировать";
+            var confirmed = await JS.InvokeAsync<bool>("confirm", $"Вы уверены, что хотите {actionText} пользователя '{user.UserName}'?");
+            if (!confirmed) return;
+
+            user.IsBlocked = block;
+            var updateResult = await UserManager.UpdateAsync(user);
+
+            if (updateResult.Succeeded)
+            {
+                await LoadUsersOptimizedAsync();
+                StateHasChanged();
+            }
+            else
+            {
+                errorMessage = string.Join(", ", updateResult.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ошибка изменения статуса пользователя: {ex.Message}";
+        }
+    }
     private async Task CreateUserAsync()
     {
         editingUser = null;

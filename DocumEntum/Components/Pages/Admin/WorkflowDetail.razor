@@ -112,17 +112,14 @@ else
                             <label class="form-label">Описание</label>
                             <InputTextArea @bind-Value="stateEditModel.Description" class="form-control bg-dark text-white border-secondary" />
                         </div>
-                        <div class="mb-3 form-check">
-                            <InputCheckbox @bind-Value="stateEditModel.IsInitial" class="form-check-input bg-dark text-white border-secondary" />
-                            <label class="form-check-label">Начальное состояние</label>
-                        </div>
-                        <div class="mb-3 form-check">
-                            <InputCheckbox @bind-Value="stateEditModel.IsFinal" class="form-check-input bg-dark text-white border-secondary" />
-                            <label class="form-check-label">Конечное состояние</label>
-                        </div>
-                        <div class="mb-3 form-check">
-                            <InputCheckbox @bind-Value="stateEditModel.IsRejected" class="form-check-input bg-dark text-white border-secondary" />
-                            <label class="form-check-label">Окончательная браковка</label>
+                        <div class="mb-3">
+                            <label class="form-label">Тип состояния</label>
+                            <InputSelect @bind-Value="stateEditModel.Type" class="form-control bg-dark text-white border-secondary">
+                                <option value="@StateType.None">— Не выбрано —</option>
+                                <option value="@StateType.Initial">Начальное состояние</option>
+                                <option value="@StateType.Final">Конечное состояние</option>
+                                <option value="@StateType.Rejected">Окончательная браковка</option>
+                            </InputSelect>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Порядок</label>
@@ -222,7 +219,15 @@ else
     </div>
 }
 
-@code {
+@code 
+{
+    public enum StateType
+    {
+        None,
+        Initial,
+        Final,
+        Rejected
+    }
     [Parameter] public int WorkflowId { get; set; }
     private Workflow? workflow;
     private string activeTab = "states";
@@ -296,13 +301,16 @@ else
         editingState = state;
         if (state != null)
         {
+            StateType type = StateType.None;
+            if (state.IsInitial) type = StateType.Initial;
+            else if (state.IsFinal) type = StateType.Final;
+            else if (state.IsRejected) type = StateType.Rejected;
+
             stateEditModel = new StateEditModel
             {
                 Name = state.Name,
                 Description = state.Description,
-                IsInitial = state.IsInitial,
-                IsFinal = state.IsFinal,
-                IsRejected = state.IsRejected,
+                Type = type,
                 Order = state.Order,
                 RequiredPositionId = state.RequiredPositionId,
                 CanEdit = state.CanEdit
@@ -320,6 +328,10 @@ else
     {
         try
         {
+            var isInitial = stateEditModel.Type == StateType.Initial;
+            var isFinal = stateEditModel.Type == StateType.Final;
+            var isRejected = stateEditModel.Type == StateType.Rejected;
+
             if (editingState == null)
             {
                 var newState = new WorkflowState
@@ -327,9 +339,9 @@ else
                     WorkflowId = WorkflowId,
                     Name = stateEditModel.Name,
                     Description = stateEditModel.Description,
-                    IsInitial = stateEditModel.IsInitial,
-                    IsFinal = stateEditModel.IsFinal,
-                    IsRejected = stateEditModel.IsRejected,
+                    IsInitial = isInitial,
+                    IsFinal = isFinal,
+                    IsRejected = isRejected,
                     Order = stateEditModel.Order,
                     RequiredPositionId = stateEditModel.RequiredPositionId,
                     CanEdit = stateEditModel.CanEdit
@@ -340,9 +352,9 @@ else
             {
                 editingState.Name = stateEditModel.Name;
                 editingState.Description = stateEditModel.Description;
-                editingState.IsInitial = stateEditModel.IsInitial;
-                editingState.IsFinal = stateEditModel.IsFinal;
-                editingState.IsRejected = stateEditModel.IsRejected;
+                editingState.IsInitial = isInitial;
+                editingState.IsFinal = isFinal;
+                editingState.IsRejected = isRejected;
                 editingState.Order = stateEditModel.Order;
                 editingState.RequiredPositionId = stateEditModel.RequiredPositionId;
                 editingState.CanEdit = stateEditModel.CanEdit;
@@ -454,9 +466,7 @@ else
         [Required(ErrorMessage = "Название обязательно")]
         public string Name { get; set; } = "";
         public string? Description { get; set; }
-        public bool IsInitial { get; set; }
-        public bool IsFinal { get; set; }
-        public bool IsRejected { get; set; }
+        public StateType Type { get; set; } = StateType.None;
         public int Order { get; set; }
         public int? RequiredPositionId { get; set; }
         public bool CanEdit { get; set; }
