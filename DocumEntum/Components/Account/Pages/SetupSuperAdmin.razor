@@ -121,9 +121,14 @@ else
     {
         [Required(ErrorMessage = "Логин обязателен")]
         public string UserName { get; set; } = "";
-
+        private string? _email;
         [EmailAddress(ErrorMessage = "Некорректный email")]
-        public string? Email { get; set; }
+        public string? Email
+        {
+            get => _email;
+            // Если пришла пустая строка из формы, превращаем её в null
+            set => _email = string.IsNullOrWhiteSpace(value) ? null : value;
+        }
 
         [Required(ErrorMessage = "Пароль обязателен")]
         [DataType(DataType.Password)]
