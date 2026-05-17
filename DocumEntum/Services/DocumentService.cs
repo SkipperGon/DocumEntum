@@ -275,10 +275,9 @@ namespace DocumEntum.Services
                 .Where(d => d.CurrentState.IsFinal && !d.IsDeleted && d.ReplacesDocumentId == null); // Сотрудники никогда не видят удаленные
 
             if (userDeptId.HasValue)
-                queryEmp = queryEmp.Where(d => d.AuthorId == employee.Id ||
-                    d.DocumentType.AvailableDepartments.Any(dept => dept.Id == userDeptId.Value));
+                queryEmp = queryEmp.Where(d => d.DocumentType.AvailableDepartments.Any(dept => dept.Id == userDeptId.Value));
             else
-                queryEmp = queryEmp.Where(d => d.AuthorId == employee.Id);
+                queryEmp = queryEmp.Where(d => false);
 
             return await queryEmp.OrderByDescending(d => d.CreatedAt).ToListAsync();
         }
@@ -410,10 +409,6 @@ namespace DocumEntum.Services
 
             var emp = await _currentUserService.GetCurrentEmployeeAsync();
             if (emp == null) return null;
-
-            // Автор всегда может смотреть
-            if (doc.AuthorId == emp.Id)
-                return doc;
 
             // Участник неутверждённого процесса на текущем этапе (бухгалтер, начальник и т.д.)
             if (doc.CurrentState != null && !doc.CurrentState.IsFinal)
