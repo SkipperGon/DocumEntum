@@ -33,6 +33,10 @@ namespace DocumEntum.Services
 
         public async Task DeleteWorkflowAsync(int id)
         {
+            var hasDocuments = await _dbContext.Documents.AnyAsync(d => d.WorkflowId == id);
+            if (hasDocuments)
+                throw new InvalidOperationException("Невозможно удалить процесс, так как существуют документы и черновики, связанные с ним.");
+
             var workflow = await _dbContext.Workflows.FindAsync(id);
             if (workflow != null)
             {

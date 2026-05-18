@@ -18,6 +18,13 @@
 }
 else
 {
+    @if (!string.IsNullOrEmpty(errorMessage) && !showModal)
+    {
+        <div class="alert alert-danger alert-dismissible fade show mt-2" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
     <div class="mb-3">
         <label class="form-label">Фильтр по типу документа</label>
         <select class="form-select w-25 bg-dark text-white border-secondary" value="@selectedDocumentTypeId" @onchange="OnDocumentTypeFilterChanged">
@@ -132,7 +139,7 @@ else
         {
             workflows = await WorkflowAdminService.GetWorkflowsAsync();
             documentTypes = await DocumentTypeService.GetAllAsync();
-            
+
             // Установка фильтра из query-параметра, если он есть и валиден
             if (documentTypeId.HasValue && documentTypeId.Value > 0 && documentTypes.Any(dt => dt.Id == documentTypeId.Value))
             {
@@ -142,7 +149,7 @@ else
             {
                 selectedDocumentTypeId = 0;
             }
-            
+
             ApplyFilter();
         }
         catch (Exception ex)
@@ -233,11 +240,22 @@ else
 
     private async Task DeleteWorkflow(Workflow wf)
     {
-        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить процесс '{wf.Name}'? Все связанные состояния и переходы также будут удалены.");
-        if (confirmed)
+        try
         {
-            await WorkflowAdminService.DeleteWorkflowAsync(wf.Id);
-            await LoadData();
+            bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить процесс '{wf.Name}'? Все связанные состояния и переходы также будут удалены.");
+            if (confirmed)
+            {
+                await WorkflowAdminService.DeleteWorkflowAsync(wf.Id);
+                await LoadData();
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            errorMessage = ex.Message;   // вывести в модалке или alert
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException)
+        {
+            errorMessage = "Невозможно удалить процесс, так как есть связанные документы.";
         }
     }
 

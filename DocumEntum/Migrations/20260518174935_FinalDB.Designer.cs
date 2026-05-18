@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260515132628_MDfytd")]
-    partial class MDfytd
+    [Migration("20260518174935_FinalDB")]
+    partial class FinalDB
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -855,13 +855,13 @@ namespace DocumEntum.Migrations
                     b.HasOne("DocumEntum.Data.WorkflowState", "FromState")
                         .WithMany()
                         .HasForeignKey("FromStateId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("DocumEntum.Data.WorkflowState", "ToState")
                         .WithMany()
                         .HasForeignKey("ToStateId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("DocumEntum.Data.Workflow", "Workflow")

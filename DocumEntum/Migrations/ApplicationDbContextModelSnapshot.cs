@@ -852,13 +852,13 @@ namespace DocumEntum.Migrations
                     b.HasOne("DocumEntum.Data.WorkflowState", "FromState")
                         .WithMany()
                         .HasForeignKey("FromStateId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("DocumEntum.Data.WorkflowState", "ToState")
                         .WithMany()
                         .HasForeignKey("ToStateId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("DocumEntum.Data.Workflow", "Workflow")

@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DocumEntum.Migrations
 {
     /// <inheritdoc />
-    public partial class MDfytd : Migration
+    public partial class FinalDB : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -431,13 +431,13 @@ namespace DocumEntum.Migrations
                         column: x => x.FromStateId,
                         principalTable: "WorkflowStates",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_WorkflowTransitions_WorkflowStates_ToStateId",
                         column: x => x.ToStateId,
                         principalTable: "WorkflowStates",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_WorkflowTransitions_Workflows_WorkflowId",
                         column: x => x.WorkflowId,

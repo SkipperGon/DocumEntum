@@ -144,12 +144,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasOne(wt => wt.FromState)
                 .WithMany()
                 .HasForeignKey(wt => wt.FromStateId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(wt => wt.ToState)
                 .WithMany()
                 .HasForeignKey(wt => wt.ToStateId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<DocumentType>(entity =>
