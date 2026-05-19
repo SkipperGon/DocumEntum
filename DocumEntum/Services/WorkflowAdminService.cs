@@ -116,11 +116,16 @@ namespace DocumEntum.Services
         public async Task DeleteStateAsync(int id)
         {
             var state = await _dbContext.WorkflowStates.FindAsync(id);
-            if (state != null)
-            {
-                _dbContext.WorkflowStates.Remove(state);
-                await _dbContext.SaveChangesAsync();
-            }
+            if (state == null) return;
+
+            // Проверяем, есть ли документы, ссылающиеся на это состояние
+            var hasDocuments = await _dbContext.Documents.AnyAsync(d => d.CurrentStateId == id);
+            if (hasDocuments)
+                throw new InvalidOperationException(
+                    "Невозможно удалить состояние, так как на него ссылаются существующие документы (черновики или утверждённые документы).");
+
+            _dbContext.WorkflowStates.Remove(state);
+            await _dbContext.SaveChangesAsync();
         }
 
         public async Task<List<WorkflowTransition>> GetTransitionsForWorkflowAsync(int workflowId)

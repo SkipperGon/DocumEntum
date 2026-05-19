@@ -37,6 +37,13 @@ else
     <div class="tab-content mt-3">
         @if (activeTab == "states")
         {
+            @if (!string.IsNullOrEmpty(stateErrorMessage) && !showStateModal)
+            {
+                <div class="alert alert-danger alert-dismissible fade show mt-2" role="alert">
+                    @stateErrorMessage
+                    <button type="button" class="btn-close" @onclick="() => stateErrorMessage = null"></button>
+                </div>
+            }
             <button class="btn btn-success mb-2" @onclick="() => OpenStateModal(null)">➕ Добавить состояние</button>
             <table class="table table-bordered table-dark">
                 <thead>
@@ -371,11 +378,22 @@ else
 
     private async Task DeleteState(WorkflowState state)
     {
+       try
+    {
         if (await JS.InvokeAsync<bool>("confirm", $"Удалить состояние '{state.Name}'?"))
         {
             await WorkflowAdminService.DeleteStateAsync(state.Id);
             await LoadStates();
         }
+    }
+    catch (InvalidOperationException ex)
+    {
+        stateErrorMessage = ex.Message; // это сообщение отобразится в модальном окне
+    }
+    catch (Exception ex)
+    {
+        stateErrorMessage = "Ошибка при удалении состояния: " + ex.Message;
+    }
     }
 
     private void CloseStateModal()
