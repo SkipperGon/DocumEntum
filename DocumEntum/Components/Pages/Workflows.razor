@@ -388,8 +388,16 @@ else
 
     private void OnStartFileSelected(InputFileChangeEventArgs e)
     {
-        startModalError = null;
-        startFile = e.FileCount > 0 ? e.File : null;
+        startModalError = null; 
+        var file = e.FileCount > 0 ? e.File : null;
+        if (file != null && file.Size > MaxUploadBytes)
+        {
+            startModalError = "Файл превышает максимально допустимый размер (100 МБ)";
+            startFile = null;
+            startFileName = null;
+            return;
+        }
+        startFile = file;
         startFileName = startFile?.Name;
     }
 
@@ -517,9 +525,18 @@ else
 
     private void OnManageFileSelected(InputFileChangeEventArgs e)
     {
-        manageFile = e.FileCount > 0 ? e.File : null;
         manageModalError = null;
         manageModalSuccess = null;
+        var file = e.FileCount > 0 ? e.File : null;
+
+        if (file != null && file.Size > MaxUploadBytes)
+        {
+            manageModalError = "Файл превышает максимально допустимый размер (100 МБ)";
+            manageFile = null;
+            return;
+        }
+
+        manageFile = file;
     }
 
     private async Task UpdateDocumentFile()
