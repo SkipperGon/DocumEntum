@@ -1,4 +1,5 @@
 ﻿using DocumEntum.Data;
+using DocumEntum.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;
@@ -34,6 +35,12 @@ namespace DocumEntum.Components.Account
 
         private async Task<bool> ValidateSecurityStampAsync(UserManager<ApplicationUser> userManager, ClaimsPrincipal principal)
         {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            // Отключаем авторизацию если БД лежит
+            var healthService = scope.ServiceProvider.GetRequiredService<IDatabaseHealthService>();
+            if (!healthService.IsHealthy)
+                return false;
+
             var user = await userManager.GetUserAsync(principal);
             if (user is null || user.IsBlocked) return false;
             if (!userManager.SupportsUserSecurityStamp) return true;

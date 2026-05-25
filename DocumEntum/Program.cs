@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Storage.Internal;
 
 namespace DocumEntum
 {
@@ -48,7 +49,13 @@ namespace DocumEntum
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseNpgsql(connectionString));
+                options.UseNpgsql(connectionString, npgsqlOptions =>
+                {
+                    npgsqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 0,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorCodesToAdd: null);
+                }));
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
             builder.Services.AddIdentityCore<ApplicationUser>(options =>
@@ -70,6 +77,8 @@ namespace DocumEntum
 
             var app = builder.Build();
 
+            app.UseMiddleware<DatabaseErrorHandlingMiddleware>();
+
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             { }
@@ -78,6 +87,9 @@ namespace DocumEntum
                 app.UseExceptionHandler("/Error");
                 app.UseHsts();
             }
+
+            // Middleware проверки здоровья БД
+            app.UseMiddleware<DatabaseHealthMiddleware>();
 
             app.UseHttpsRedirection();
             app.UseStaticFiles();
@@ -145,9 +157,7 @@ namespace DocumEntum
                 }
             }
 
-            // Middleware проверки здоровья БД
-            app.UseMiddleware<DatabaseHealthMiddleware>();
-
+            
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();
 

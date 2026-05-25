@@ -2,43 +2,81 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
+using Npgsql;
+using System.Net.Sockets;
 using System.Security.Claims;
 
-namespace DocumEntum.Services;
-
-public class CustomCookieAuthenticationEvents : CookieAuthenticationEvents
+namespace DocumEntum.Services
 {
-    private readonly IServiceScopeFactory _scopeFactory;
 
-    public CustomCookieAuthenticationEvents(IServiceScopeFactory scopeFactory)
+    public class CustomCookieAuthenticationEvents : CookieAuthenticationEvents
     {
-        _scopeFactory = scopeFactory;
+        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IDatabaseHealthService _healthService;
 
-        // Подписываемся на событие валидации cookie-принципала
-        OnValidatePrincipal = async context =>
+        public CustomCookieAuthenticationEvents(IServiceScopeFactory scopeFactory, IDatabaseHealthService healthService)
         {
-            var userPrincipal = context.Principal;
-            if (userPrincipal?.Identity?.IsAuthenticated != true)
-                return;
+            _scopeFactory = scopeFactory;
+            _healthService = healthService;
 
-            var userId = userPrincipal.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
+            OnValidatePrincipal = async context =>
             {
-                context.RejectPrincipal();
-                await context.HttpContext.SignOutAsync();
-                return;
-            }
+                // Проверяем, не находимся ли мы уже на странице ошибки
+                if (context.Request.Path.StartsWithSegments("/DBError"))
+                {
+                    return;
+                }
 
-            using var scope = _scopeFactory.CreateScope();
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = await userManager.FindByIdAsync(userId);
+                //Если сервис уже знает, что БД лежит, прерываем валидацию, 
+                // чтобы не вызывать исключения и не зацикливать цикл запросов
+                if (!_healthService.IsHealthy)
+                {
+                    context.RejectPrincipal();
+                    context.HttpContext.Response.Redirect("/DBError");
+                    return;
+                }
 
-            // Если пользователь удалён из БД или заблокирован
-            if (user == null || user.IsBlocked)
-            {
-                context.RejectPrincipal();
-                await context.HttpContext.SignOutAsync();
-            }
-        };
+                var userPrincipal = context.Principal;
+                if (userPrincipal?.Identity?.IsAuthenticated != true)
+                    return;
+
+                var userId = userPrincipal.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId))
+                {
+                    context.RejectPrincipal();
+                    await context.HttpContext.SignOutAsync();
+                    return;
+                }
+
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                    var user = await userManager.FindByIdAsync(userId);
+
+                    if (user == null || user.IsBlocked)
+                    {
+                        context.RejectPrincipal();
+                        await context.HttpContext.SignOutAsync();
+                    }
+                }
+                catch (Exception ex) when (IsDatabaseConnectionException(ex))
+                {
+                    // База данных недоступна
+                    _healthService.MarkUnhealthy(ex.Message);
+                    context.HttpContext.Response.Redirect("/DBError");
+                    context.RejectPrincipal();
+                }
+            };
+
+        }
+        private bool IsDatabaseConnectionException(Exception ex)
+        {
+            return ex is NpgsqlException ||
+                   ex is SocketException ||
+                   ex is IOException ||
+                   (ex is InvalidOperationException ioEx && ioEx.Message.Contains("transient failure")) ||
+                   ex.InnerException != null && IsDatabaseConnectionException(ex.InnerException);
+        }
     }
 }
