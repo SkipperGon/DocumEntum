@@ -72,7 +72,7 @@
         var user = await UserManager.FindByNameAsync(Input.Login);
         if (user != null && user.IsBlocked)
         {
-            errorMessage = "Данный пользователь заблокирован. Для разблокировки обратитесь к администратору";
+            errorMessage = "Ошибка: данный пользователь заблокирован. Для разблокировки обратитесь к администратору";
             return;
         }
         var result = await SignInManager.PasswordSignInAsync(Input.Login, Input.Password, Input.RememberMe, lockoutOnFailure: false);

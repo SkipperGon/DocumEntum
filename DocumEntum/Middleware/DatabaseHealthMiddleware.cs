@@ -1,4 +1,5 @@
-﻿using DocumEntum.Services;
+﻿using DocumEntum.Data;
+using DocumEntum.Services;
 
 namespace DocumEntum.Middleware
 {
@@ -8,7 +9,7 @@ namespace DocumEntum.Middleware
 
         public DatabaseHealthMiddleware(RequestDelegate next) => _next = next;
 
-        public async Task InvokeAsync(HttpContext context, IDatabaseHealthService healthService)
+        public async Task InvokeAsync(HttpContext context, IDatabaseHealthService healthService, ApplicationDbContext dbContext)
         {
             var path = context.Request.Path;
 
@@ -30,6 +31,13 @@ namespace DocumEntum.Middleware
             try
             {
                 await _next(context);
+
+                // После успешного выполнения запроса, если сервис был нездоров, 
+                // пытаемся восстановить здоровье через проверку подключения к БД
+                if (!healthService.IsHealthy)
+                {
+                    await TryRecoverHealthAsync(healthService, dbContext);
+                }
             }
             catch (Exception ex) when (IsDatabaseException(ex))
             {
@@ -45,6 +53,24 @@ namespace DocumEntum.Middleware
 
                 // Если ответ уже начал формироваться, редирект не сработает
                 throw;
+            }
+        }
+
+        // Попытка восстановить здоровье сервиса путем проверки подключения к БД
+        private async Task TryRecoverHealthAsync(IDatabaseHealthService healthService, ApplicationDbContext dbContext)
+        {
+            try
+            {
+                // Выполняем простую проверку подключения (CanConnectAsync)
+                if (await dbContext.Database.CanConnectAsync())
+                {
+                    healthService.MarkHealthy();
+                }
+            }
+            catch
+            {
+                // Если проверка не прошла, оставляем сервис в состоянии нездоровья
+                // и не выбрасываем исключение, чтобы не прерывать обработку запроса
             }
         }
 
