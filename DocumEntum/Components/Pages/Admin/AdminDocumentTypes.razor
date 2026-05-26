@@ -24,7 +24,7 @@ else
             <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
         </div>
     }
-    <button class="btn btn-primary mb-3" @onclick="OpenCreateModal">➕ Создать тип</button>
+    <button class="btn btn-primary mb-3" @onclick="OpenCreateModal">Создать тип</button>
 
     <table class="table table-striped table-dark">
         <thead>
@@ -48,9 +48,9 @@ else
                         }
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-primary" @onclick="() => OpenEditModal(dt)">✏️</button>
-                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteDocumentType(dt)">🗑️</button>
-                        <button class="btn btn-sm btn-info" @onclick="@(() => NavigationManager.NavigateTo($"/Admin/Workflows?documentTypeId={dt.Id}"))">📋 Процессы</button>
+                        <button class="btn btn-sm btn-primary" @onclick="() => OpenEditModal(dt)">Изменить</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteDocumentType(dt)">Удалить</button>
+                        <button class="btn btn-sm btn-info" @onclick="@(() => NavigationManager.NavigateTo($"/Admin/Workflows?documentTypeId={dt.Id}"))">Процессы</button>
                      </td>
                 </tr>
             }

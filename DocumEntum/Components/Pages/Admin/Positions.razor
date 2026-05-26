@@ -17,7 +17,7 @@
 }
 else
 {
-    <button class="btn btn-primary mb-3" @onclick="() => OpenPositionModal(null)">➕ Добавить должность</button>
+    <button class="btn btn-primary mb-3" @onclick="() => OpenPositionModal(null)">Добавить должность</button>
 
     @if (positions.Any())
     {
@@ -49,7 +49,7 @@ else
                                             <li>
                                                 @assignment.Employee?.FullName
                                                 <button class="btn btn-sm btn-outline-danger ms-2" @onclick="() => UnassignEmployee(assignment.Id)" title="Открепить">
-                                                    🗑️
+                                                    Удалить
                                                 </button>
                                             </li>
                                         }
@@ -62,9 +62,9 @@ else
                             }
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenPositionModal(pos)">✏️</button>
-                            <button class="btn btn-sm btn-danger me-1" @onclick="() => DeletePosition(pos)">🗑️</button>
-                            <button class="btn btn-sm btn-success" @onclick="() => OpenAssignModal(pos)">➕ Назначить</button>
+                            <button class="btn btn-sm btn-primary me-1" @onclick="() => OpenPositionModal(pos)">Изменить</button>
+                            <button class="btn btn-sm btn-danger me-1" @onclick="() => DeletePosition(pos)">Удалить</button>
+                            <button class="btn btn-sm btn-success" @onclick="() => OpenAssignModal(pos)">Назначить</button>
                         </td>
                     </tr>
                 }

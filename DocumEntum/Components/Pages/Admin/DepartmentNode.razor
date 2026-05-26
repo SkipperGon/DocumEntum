@@ -14,7 +14,7 @@
         </span>
         <span>@Department.Name</span>
         <div class="btn-group btn-group-sm ms-2">
-            <button class="btn btn-outline-secondary" @onclick="() => OnEdit.InvokeAsync(Department)" title="Редактировать">✏️</button>
+            <button class="btn btn-outline-secondary" @onclick="() => OnEdit.InvokeAsync(Department)" title="Изменить">✏</button>
             <button class="btn btn-outline-secondary" @onclick="() => OnAddChild.InvokeAsync(Department)" title="Добавить подотдел">➕</button>
             <button class="btn btn-outline-info" @onclick="() => OnManagePositions.InvokeAsync(Department)" title="Управление должностями">📋</button>
             <button class="btn btn-outline-danger" @onclick="() => OnDelete.InvokeAsync(Department)" title="Удалить">🗑️</button>

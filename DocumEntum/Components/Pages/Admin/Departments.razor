@@ -17,7 +17,7 @@
 }
 else
 {
-    <button class="btn btn-primary mb-3" @onclick="() => OpenModal(null, null)">➕ Добавить корневой отдел</button>
+    <button class="btn btn-primary mb-3" @onclick="() => OpenModal(null, null)">Добавить корневой отдел</button>
 
     @if (rootDepartments.Any())
     {
@@ -101,7 +101,7 @@ else
                     }
                     else
                     {
-                        <button class="btn btn-sm btn-success mb-2" @onclick="() => OpenPositionEditModal(null)">➕ Добавить должность</button>
+                        <button class="btn btn-sm btn-success mb-2" @onclick="() => OpenPositionEditModal(null)">Добавить должность</button>
                         <table class="table table-sm table-dark">
                             <thead>
                                 <tr><th>Название</th><th>Описание</th><th>Действия</th></tr>
@@ -113,8 +113,8 @@ else
                                         <td>@pos.Title</td>
                                         <td>@pos.Description</td>
                                         <td>
-                                            <button class="btn btn-sm btn-primary" @onclick="() => OpenPositionEditModal(pos)">✏️</button>
-                                            <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDeletePosition(pos)">🗑️</button>
+                                            <button class="btn btn-sm btn-primary" @onclick="() => OpenPositionEditModal(pos)">Изменить</button>
+                                            <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDeletePosition(pos)">Удалить</button>
                                         </td>
                                     </tr>
                                 }
