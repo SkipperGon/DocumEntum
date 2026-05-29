@@ -86,8 +86,8 @@ else
                             <td>@trans.ActionName</td>
                             <td>@(trans.AllowedPositionIds != null ? string.Join(", ", trans.AllowedPositionIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(id => GetPositionTitle(int.Parse(id)))) : "—")</td>
                             <td>
-                                <button class="btn btn-sm btn-primary" @onclick="() => OpenTransitionModal(trans)">✏️</button>
-                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteTransition(trans)">🗑️</button>
+                                <button class="btn btn-sm btn-primary" @onclick="() => OpenTransitionModal(trans)">Изменить</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteTransition(trans)">Удалить</button>
                             </td>
                         </tr>
                     }
