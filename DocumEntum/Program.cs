@@ -15,7 +15,12 @@ namespace DocumEntum
     {
         public static async Task Main(string[] args)
         {
-            var builder = WebApplication.CreateBuilder(args);
+            var options = new WebApplicationOptions
+            {
+                Args = args,
+                ContentRootPath = AppContext.BaseDirectory
+            };
+            var builder = WebApplication.CreateBuilder(options);
 
             // Add services to the container.
             builder.Services.AddRazorComponents()
@@ -46,8 +51,21 @@ namespace DocumEntum
             })
                 .AddIdentityCookies();
 
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                lock (Console.Out)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("\n------------------------------------------------");
+                    Console.WriteLine("[CRITICAL] Файл конфигурации или 'DefaultConnection' не найден!");
+                    Console.WriteLine($"Ожидаемый путь: {options.ContentRootPath}appsettings.json");
+                    Console.WriteLine("------------------------------------------------\n");
+                    Console.ResetColor();
+                }
+                return;
+            }
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(connectionString, npgsqlOptions =>
                 {
@@ -77,7 +95,6 @@ namespace DocumEntum
 
             var app = builder.Build();
 
-            app.UseMiddleware<DatabaseErrorHandlingMiddleware>();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -88,11 +105,15 @@ namespace DocumEntum
                 app.UseHsts();
             }
 
-            // Middleware проверки здоровья БД
-            app.UseMiddleware<DatabaseHealthMiddleware>();
+            // Middleware фмксации здоровья БД при исключениях
+            app.UseMiddleware<DatabaseErrorHandlingMiddleware>();
 
             app.UseHttpsRedirection();
             app.UseStaticFiles();
+
+            // Middleware проверки здоровья БД
+            app.UseMiddleware<DatabaseHealthMiddleware>();
+
             app.UseAntiforgery();
 
             // ----- Инициализация БД с обработкой ошибок -----
