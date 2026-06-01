@@ -170,6 +170,11 @@ namespace DocumEntum.Services
             if (hasActiveEmployees)
                 throw new InvalidOperationException("Нельзя удалить должность, на которую назначены сотрудники.");
 
+            var usedInWorkflow = await _dbContext.WorkflowStates
+                .AnyAsync(ws => ws.RequiredPositionId == id);
+            if (usedInWorkflow)
+                throw new InvalidOperationException("Нельзя удалить должность, которая используется в бизнес-процессе.");
+
             _dbContext.Positions.Remove(position);
             await _dbContext.SaveChangesAsync();
         }
@@ -178,7 +183,11 @@ namespace DocumEntum.Services
         {
             var hasActiveEmployees = await _dbContext.EmployeePositions
                 .AnyAsync(ep => ep.PositionId == id && ep.EndDate == null);
-            return !hasActiveEmployees;
+            if (hasActiveEmployees) return false;
+
+            var usedInWorkflow = await _dbContext.WorkflowStates
+                .AnyAsync(ws => ws.RequiredPositionId == id);
+            return !usedInWorkflow;
         }
 
         // Сотрудники

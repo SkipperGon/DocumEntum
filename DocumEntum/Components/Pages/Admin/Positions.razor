@@ -257,15 +257,23 @@ else
         bool canDelete = await OrgService.CanDeletePositionAsync(pos.Id);
         if (!canDelete)
         {
-            await JS.InvokeVoidAsync("alert", "Нельзя удалить должность, на которую назначены сотрудники.");
+            await JS.InvokeVoidAsync("alert",
+                "Нельзя удалить должность: она назначена сотрудникам или используется в бизнес-процессе.");
             return;
         }
 
         bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Удалить должность '{pos.Title}'?");
         if (confirmed)
         {
-            await OrgService.DeletePositionAsync(pos.Id);
-            await LoadData();
+            try
+            {
+                await OrgService.DeletePositionAsync(pos.Id);
+                await LoadData();
+            }
+            catch (Exception ex)
+            {
+                positionErrorMessage = ex.Message;
+            }
         }
     }
 
