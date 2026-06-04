@@ -21,12 +21,12 @@
 </p>
 
 <!--фильтрация и сортировка-->
-<div class="card bg-dark text-white border-secondary mb-4">
+<div class="card mb-4">
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-md-3">
                 <label class="form-label">Тип документа</label>
-                <select class="form-select bg-dark text-white border-secondary" @bind="selectedDocumentTypeId">
+                <select class="form-select" @bind="selectedDocumentTypeId">
                     <option value="0">Все типы</option>
                     @foreach (var dt in documentTypes)
                     {
@@ -36,11 +36,11 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label">Название документа</label>
-                <input type="text" class="form-control bg-dark text-white border-secondary" @bind="searchTitle" placeholder="Поиск по названию..." />
+                <input type="text" class="form-control" @bind="searchTitle" placeholder="Поиск по названию..." />
             </div>
             <div class="col-md-3">
                 <label class="form-label">Сортировка</label>
-                <select class="form-select bg-dark text-white border-secondary" @bind="selectedSortOption">
+                <select class="form-select" @bind="selectedSortOption">
                     <option value="@SortOption.TitleAsc">Название (А→Я)</option>
                     <option value="@SortOption.TitleDesc">Название (Я→А)</option>
                     <option value="@SortOption.CreatedDesc">Создано (сначала новые)</option>
@@ -58,7 +58,7 @@
     <div class="row mb-3">
         <div class="col-12">
             <div class="form-check form-switch">
-                <input class="form-check-input bg-dark border-secondary" type="checkbox" id="showDeletedToggle" checked="@showDeleted" @onchange="ToggleShowDeleted" />
+                <input class="form-check-input" type="checkbox" id="showDeletedToggle" checked="@showDeleted" @onchange="ToggleShowDeleted" />
                 <label class="form-check-label text-muted" for="showDeletedToggle">Отображать удалённые документы</label>
             </div>
         </div>
@@ -80,7 +80,7 @@ else if (documents.Count == 0)
 else
 {
     <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle table-dark">
+        <table class="table table-striped table-hover align-middle">
             <thead>
                 <tr>
                     <th>Название</th>
@@ -142,7 +142,7 @@ else
     {
         <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
             <div class="modal-dialog">
-                <div class="modal-content bg-dark text-white">
+                <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Обновление документа: @docToUpdate.Title</h5>
                         <button type="button" class="btn-close btn-close-white" @onclick="CloseUpdateModal"></button>
@@ -155,7 +155,7 @@ else
                         <p>Выберите процесс для изменения документа. Будет создан черновик новой версии.</p>
                         <div class="mb-3">
                             <label class="form-label">Бизнес-процесс</label>
-                            <select class="form-select bg-dark text-white border-secondary" @bind="selectedWorkflowId">
+                            <select class="form-select" @bind="selectedWorkflowId">
                                 <option value="0">— выберите процесс —</option>
                                 @foreach (var w in availableWorkflows)
                                 {
@@ -177,7 +177,7 @@ else
     {
         <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
             <div class="modal-dialog modal-lg">
-                <div class="modal-content bg-dark text-white">
+                <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">История версий: @docForVersions.Title</h5>
                         <button type="button" class="btn-close btn-close-white" @onclick="CloseVersionsModal"></button>
@@ -193,7 +193,7 @@ else
                         }
                         else
                         {
-                            <table class="table table-sm table-dark">
+                            <table class="table table-sm">
                                 <thead>
                                     <tr>
                                         <th>Версия</th>

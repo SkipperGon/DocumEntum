@@ -21,7 +21,7 @@ else
 
     @if (positions.Any())
     {
-        <table class="table table-striped table-bordered table-dark">
+        <table class="table table-striped">
             <thead>
                 <tr>
                     <th>Название</th>
@@ -82,7 +82,7 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingPosition == null ? "Новая должность" : "Редактирование должности")</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="ClosePositionModal"></button>
@@ -92,16 +92,16 @@ else
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Название</label>
-                            <InputText @bind-Value="positionEditModel.Title" class="form-control bg-dark text-white border-secondary" />
+                            <InputText @bind-Value="positionEditModel.Title" class="form-control" />
                             <ValidationMessage For="() => positionEditModel.Title" class="text-danger" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Описание</label>
-                            <InputText @bind-Value="positionEditModel.Description" class="form-control bg-dark text-white border-secondary" />
+                            <InputText @bind-Value="positionEditModel.Description" class="form-control" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Отдел</label>
-                            <InputSelect @bind-Value="positionEditModel.DepartmentId" class="form-control bg-dark text-white border-secondary">
+                            <InputSelect @bind-Value="positionEditModel.DepartmentId" class="form-control">
                                 <option value="">-- Выберите отдел --</option>
                                 @foreach (var dept in departments)
                                 {
@@ -130,7 +130,7 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Назначение сотрудника на должность: @selectedPosition?.Title</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="CloseAssignModal"></button>
@@ -138,7 +138,7 @@ else
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Сотрудник</label>
-                        <InputSelect @bind-Value="selectedEmployeeId" class="form-control bg-dark text-white border-secondary">
+                        <InputSelect @bind-Value="selectedEmployeeId" class="form-control">
                             <option value="">-- Выберите сотрудника --</option>
                             @foreach (var emp in availableEmployees)
                             {

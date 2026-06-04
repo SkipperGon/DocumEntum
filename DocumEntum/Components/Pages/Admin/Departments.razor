@@ -44,7 +44,7 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingDepartment == null ? "Новый отдел" : "Редактирование отдела")</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
@@ -54,12 +54,12 @@ else
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Название</label>
-                            <InputText @bind-Value="editModel.Name" class="form-control bg-dark text-white border-secondary" />
+                            <InputText @bind-Value="editModel.Name" class="form-control" />
                             <ValidationMessage For="() => editModel.Name" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Родительский отдел</label>
-                            <InputSelect @bind-Value="editModel.ParentId" class="form-control bg-dark text-white border-secondary">
+                            <InputSelect @bind-Value="editModel.ParentId" class="form-control">
                                 <option value="">— Корневой отдел —</option>
                                 @foreach (var dept in allDepartmentsFlat)
                                 {
@@ -89,7 +89,7 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content bg-dark text-white">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Должности отдела: @selectedDepartment?.Name</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="ClosePositionsModal"></button>
@@ -102,7 +102,7 @@ else
                     else
                     {
                         <button class="btn btn-sm btn-success mb-2" @onclick="() => OpenPositionEditModal(null)">Добавить должность</button>
-                        <table class="table table-sm table-dark">
+                        <table class="table table-sm">
                             <thead>
                                 <tr><th>Название</th><th>Описание</th><th>Действия</th></tr>
                             </thead>
@@ -135,7 +135,7 @@ else
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white">
+            <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingPosition == null ? "Новая должность" : "Редактирование должности")</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="ClosePositionEditModal"></button>
@@ -145,12 +145,12 @@ else
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Название</label>
-                            <InputText @bind-Value="positionEditModel.Title" class="form-control bg-dark text-white border-secondary" />
+                            <InputText @bind-Value="positionEditModel.Title" class="form-control" />
                             <ValidationMessage For="() => positionEditModel.Title" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Описание</label>
-                            <InputText @bind-Value="positionEditModel.Description" class="form-control bg-dark text-white border-secondary" />
+                            <InputText @bind-Value="positionEditModel.Description" class="form-control" />
                         </div>
                         @if (!string.IsNullOrEmpty(positionErrorMessage))
                         {

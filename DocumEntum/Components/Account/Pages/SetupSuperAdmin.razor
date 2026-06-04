@@ -30,25 +30,25 @@ else
 
         <div class="mb-3">
             <label class="form-label">Логин</label>
-            <InputText @bind-Value="Input.UserName" class="form-control bg-dark text-white border-secondary" />
+            <InputText @bind-Value="Input.UserName" class="form-control" />
             <ValidationMessage For="() => Input.UserName" class="text-danger" />
         </div>
 
         <div class="mb-3">
             <label class="form-label">Email (необязательно)</label>
-            <InputText @bind-Value="Input.Email" type="email" class="form-control bg-dark text-white border-secondary" />
+            <InputText @bind-Value="Input.Email" type="email" class="form-control" />
             <ValidationMessage For="() => Input.Email" class="text-danger" />
         </div>
 
         <div class="mb-3">
             <label class="form-label">Пароль</label>
-            <InputText @bind-Value="Input.Password" type="password" class="form-control bg-dark text-white border-secondaryl" />
+            <InputText @bind-Value="Input.Password" type="password" class="form-control" />
             <ValidationMessage For="() => Input.Password" class="text-danger" />
         </div>
 
         <div class="mb-3">
             <label class="form-label">Подтверждение пароля</label>
-            <InputText @bind-Value="Input.ConfirmPassword" type="password" class="form-control bg-dark text-white border-secondary" />
+            <InputText @bind-Value="Input.ConfirmPassword" type="password" class="form-control" />
             <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
         </div>
 

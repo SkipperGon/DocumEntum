@@ -31,14 +31,14 @@ else
         {
             var isAvailable = availabilityMap.GetValueOrDefault(docType.Id, false);
             <div class="col">
-                <div class="card h-100 bg-dark text-white border-secondary">
+                <div class="card h-100">
                     <div class="card-body">
                         <h5 class="card-title">@docType.Name</h5>
                         <p class="card-text text-light">
                             @(string.IsNullOrEmpty(docType.Description) ? "—" : docType.Description)
                         </p>
                     </div>
-                    <div class="card-footer bg-transparent border-secondary">
+                    <div class="card-footer bg-transparent">
                         @if (isAvailable)
                         {
                             <span class="badge bg-success">Доступен</span>
