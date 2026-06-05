@@ -145,7 +145,7 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Обновление документа: @docToUpdate.Title</h5>
-                        <button type="button" class="btn-close btn-close-white" @onclick="CloseUpdateModal"></button>
+                        <button type="button" class="btn-close" @onclick="CloseUpdateModal"></button>
                     </div>
                     <div class="modal-body">
                         @if (updateModalError != null)
@@ -180,7 +180,7 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">История версий: @docForVersions.Title</h5>
-                        <button type="button" class="btn-close btn-close-white" @onclick="CloseVersionsModal"></button>
+                        <button type="button" class="btn-close" @onclick="CloseVersionsModal"></button>
                     </div>
                     <div class="modal-body">
                         @if (isLoadingVersions)

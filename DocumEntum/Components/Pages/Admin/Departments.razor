@@ -47,7 +47,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingDepartment == null ? "Новый отдел" : "Редактирование отдела")</h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
                 </div>
                 <EditForm Model="editModel" OnValidSubmit="SaveDepartment">
                     <DataAnnotationsValidator />
@@ -92,7 +92,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Должности отдела: @selectedDepartment?.Name</h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="ClosePositionsModal"></button>
+                    <button type="button" class="btn-close" @onclick="ClosePositionsModal"></button>
                 </div>
                 <div class="modal-body">
                     @if (isLoadingPositions)
@@ -138,7 +138,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingPosition == null ? "Новая должность" : "Редактирование должности")</h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="ClosePositionEditModal"></button>
+                    <button type="button" class="btn-close" @onclick="ClosePositionEditModal"></button>
                 </div>
                 <EditForm Model="positionEditModel" OnValidSubmit="SavePosition">
                     <DataAnnotationsValidator />

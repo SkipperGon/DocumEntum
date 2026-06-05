@@ -105,7 +105,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingState == null ? "Новое состояние" : "Редактирование состояния")</h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="CloseStateModal"></button>
+                    <button type="button" class="btn-close" @onclick="CloseStateModal"></button>
                 </div>
                 <EditForm Model="stateEditModel" OnValidSubmit="SaveState">
                     <DataAnnotationsValidator />
@@ -169,7 +169,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editingTransition == null ? "Новый переход" : "Редактирование перехода")</h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="CloseTransitionModal"></button>
+                    <button type="button" class="btn-close" @onclick="CloseTransitionModal"></button>
                 </div>
                 <EditForm Model="transitionEditModel" OnValidSubmit="SaveTransition">
                     <DataAnnotationsValidator />

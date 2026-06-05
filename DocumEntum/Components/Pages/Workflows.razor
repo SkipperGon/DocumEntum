@@ -96,7 +96,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(startModalStep == 1 ? "Новый процесс" : "Первый переход")</h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="CancelStartWizard"></button>
+                    <button type="button" class="btn-close" @onclick="CancelStartWizard"></button>
                 </div>
                 @if (startModalStep == 1)
                 {
@@ -215,7 +215,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Управление: @manageDoc.Title</h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="CloseManageModal"></button>
+                    <button type="button" class="btn-close" @onclick="CloseManageModal"></button>
                 </div>
                 <div class="modal-body">
 
