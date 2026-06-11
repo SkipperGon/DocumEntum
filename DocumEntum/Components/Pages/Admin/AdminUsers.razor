@@ -26,6 +26,13 @@ else if (!string.IsNullOrEmpty(loadError))
 }
 else
 {
+    @if (!string.IsNullOrEmpty(errorMessage) && !showModal)
+    {
+        <div class="alert alert-danger alert-dismissible fade show mt-2" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
     <table class="table table-striped">
         <thead>
             <tr><th>Логин</th><th>Имя</th><th>Email</th><th>Роль</th><th>Отдел / Должность</th><th>Статус</th><th>Действия</th></tr>
@@ -451,7 +458,27 @@ else
                     return;
                 }
 
-                // 1. Обновляем основные поля пользователя
+                // 1. Обновляем роль, если изменилась
+                var currentRoles = await UserManager.GetRolesAsync(editingUser);
+                if (currentRoles.FirstOrDefault() != editModel.SelectedRole)
+                {
+                    var emp = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == editingUser.Id);
+                    if (emp != null)
+                    {
+                        // Проверяем, является ли сотрудник автором документов
+                        bool hasDocuments = await DbContext.Documents.AnyAsync(d => d.AuthorId == emp.Id);
+                        if (hasDocuments)
+                        {
+                            errorMessage = "Нельзя сотрудника, который связан с документов сделать администратором. Вы можете его заблокиворвать и создать администратора.";
+                            return;
+                        }
+                    }
+                    if (currentRoles.Any())
+                        await UserManager.RemoveFromRolesAsync(editingUser, currentRoles);
+                    await UserManager.AddToRoleAsync(editingUser, editModel.SelectedRole);
+                }
+
+                // 2. Обновляем основные поля пользователя
                 editingUser.UserName = editModel.UserName;
                 editingUser.Email = string.IsNullOrEmpty(editModel.Email) ? null : editModel.Email;
                 var updateResult = await UserManager.UpdateAsync(editingUser);
@@ -461,7 +488,7 @@ else
                     return;
                 }
 
-                // 2. Обновляем пароль, если указан
+                // 3. Обновляем пароль, если указан
                 if (!string.IsNullOrWhiteSpace(editModel.Password))
                 {
                     if (await UserManager.HasPasswordAsync(editingUser))
@@ -473,16 +500,6 @@ else
                         return;
                     }
                 }
-
-                // 3. Обновляем роль, если изменилась
-                var currentRoles = await UserManager.GetRolesAsync(editingUser);
-                if (currentRoles.FirstOrDefault() != editModel.SelectedRole)
-                {
-                    if (currentRoles.Any())
-                        await UserManager.RemoveFromRolesAsync(editingUser, currentRoles);
-                    await UserManager.AddToRoleAsync(editingUser, editModel.SelectedRole);
-                }
-
                 // 4. Работа с Employee и должностью
                 var existingEmployee = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == editingUser.Id);
 
@@ -553,6 +570,14 @@ else
             var emp = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == user.Id);
             if (emp != null)
             {
+                // Проверяем, является ли сотрудник автором документов
+                bool hasDocuments = await DbContext.Documents.AnyAsync(d => d.AuthorId == emp.Id);
+                if (hasDocuments)
+                {
+                    errorMessage = "Нельзя удалить сотрудника, который связан с документов. Вы можете его заблокиворвать.";
+                    return;
+                }
+
                 var positions = await DbContext.EmployeePositions.Where(ep => ep.EmployeeId == emp.Id).ToListAsync();
                 DbContext.EmployeePositions.RemoveRange(positions);
                 DbContext.Employees.Remove(emp);
