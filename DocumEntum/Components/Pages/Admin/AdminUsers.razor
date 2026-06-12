@@ -465,11 +465,19 @@ else
                     var emp = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == editingUser.Id);
                     if (emp != null)
                     {
-                        // Проверяем, является ли сотрудник автором документов
+                        
+                        // является ли сотрудник автором документов
                         bool hasDocuments = await DbContext.Documents.AnyAsync(d => d.AuthorId == emp.Id);
                         if (hasDocuments)
                         {
                             errorMessage = "Нельзя сотрудника, который связан с документов сделать администратором. Вы можете его заблокиворвать и создать администратора.";
+                            return;
+                        }
+                        // причастен ли сотрудник к ходу документов
+                        bool hasDocumentHistory = await DbContext.DocumentHistories.AnyAsync(h => h.ActionById == emp.Id);
+                        if (hasDocumentHistory)
+                        {
+                            errorMessage = "Нельзя сотрудника, который участвовал в процессах согласования документов сделать администратором. Вы можете его заблокиворвать и создать администратора.";
                             return;
                         }
                     }
@@ -570,13 +578,22 @@ else
             var emp = await DbContext.Employees.FirstOrDefaultAsync(e => e.UserId == user.Id);
             if (emp != null)
             {
-                // Проверяем, является ли сотрудник автором документов
+                // является ли сотрудник основателем документов
                 bool hasDocuments = await DbContext.Documents.AnyAsync(d => d.AuthorId == emp.Id);
                 if (hasDocuments)
                 {
                     errorMessage = "Нельзя удалить сотрудника, который связан с документов. Вы можете его заблокиворвать.";
                     return;
                 }
+
+                // причастен ли сотрудник к ходу документов
+                bool hasDocumentHistory = await DbContext.DocumentHistories.AnyAsync(h => h.ActionById == emp.Id);
+                if (hasDocumentHistory)
+                {
+                    errorMessage = "Нельзя удалить сотрудника, который участвовал в процессах согласования документов. Вы можете его заблокиворвать.";
+                    return;
+                }
+                
 
                 var positions = await DbContext.EmployeePositions.Where(ep => ep.EmployeeId == emp.Id).ToListAsync();
                 DbContext.EmployeePositions.RemoveRange(positions);
